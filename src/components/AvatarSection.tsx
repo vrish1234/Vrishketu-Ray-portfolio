@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Upload, FileUp, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, FileUp, Loader2, Link as LinkIcon, CheckCircle2, AlertCircle } from 'lucide-react';
 import { uploadMediaFileToSupabase, updateProfileData } from '../lib/supabase';
 import { Language, ProfileInfo } from '../types';
 
@@ -14,34 +14,43 @@ export const AvatarSection: React.FC<AvatarSectionProps> = ({
   language,
   onAvatarUpdated,
 }) => {
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [urlInput, setUrlInput] = useState(profile?.avatar_url || '');
   const [avatarUploadFeedback, setAvatarUploadFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        alert(language === 'hi' ? 'कृपया केवल छवि फ़ाइल चुनें!' : 'Please select an image file only!');
-        return;
-      }
-      setAvatarFile(file);
-      setUploadProgress(0);
-      setAvatarUploadFeedback(null);
+  useEffect(() => {
+    if (profile?.avatar_url) {
+      setUrlInput(profile.avatar_url);
     }
-  };
+  }, [profile]);
 
-  const handleAvatarUpload = async () => {
-    if (!avatarFile) return;
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert(language === 'hi' ? 'कृपया केवल छवि फ़ाइल चुनें!' : 'Please select an image file only!');
+      return;
+    }
+
     setIsUploadingAvatar(true);
     setUploadProgress(0);
     setAvatarUploadFeedback(null);
 
     try {
-      // Upload directly to the 'portfolio-media' bucket in Supabase, tracking real progress
-      const uploadResult = await uploadMediaFileToSupabase(avatarFile, 'profile', (progress) => {
+      // Create a local object URL for instantaneous, latency-free preview
+      const localPreviewUrl = URL.createObjectURL(file);
+
+      // Upload directly to the 'portfolio-media' bucket in Supabase, tracking progress
+      const uploadResult = await uploadMediaFileToSupabase(file, 'profile', (progress) => {
         setUploadProgress(progress);
+        if (progress === 100) {
+          // Immediately update parent avatar state once upload hits 100% to eliminate database update latency
+          onAvatarUpdated(localPreviewUrl);
+          setUrlInput(localPreviewUrl);
+        }
       });
       
       if (!uploadResult.success || !uploadResult.publicUrl) {
@@ -60,10 +69,11 @@ export const AvatarSection: React.FC<AvatarSectionProps> = ({
       });
 
       setIsUploadingAvatar(false);
-      setAvatarFile(null);
 
       if (updateResult.success) {
+        // Set the permanent Supabase public URL
         onAvatarUpdated(uploadResult.publicUrl);
+        setUrlInput(uploadResult.publicUrl);
         setAvatarUploadFeedback({
           type: 'success',
           text: language === 'hi' ? 'प्रोफ़ाइल चित्र सफलतापूर्वक अपडेट किया गया!' : 'Profile picture updated successfully!'
@@ -84,83 +94,168 @@ export const AvatarSection: React.FC<AvatarSectionProps> = ({
     }
   };
 
+  const handleUrlUpdateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!urlInput.trim()) return;
+
+    setIsUploadingAvatar(true);
+    setAvatarUploadFeedback(null);
+
+    try {
+      const updateResult = await updateProfileData({
+        id: profile.id,
+        avatar_url: urlInput.trim()
+      });
+
+      setIsUploadingAvatar(false);
+
+      if (updateResult.success) {
+        onAvatarUpdated(urlInput.trim());
+        setAvatarUploadFeedback({
+          type: 'success',
+          text: language === 'hi' ? 'प्रोफ़ाइल चित्र यूआरएल सफलतापूर्वक अपडेट किया गया!' : 'Profile picture URL updated successfully!'
+        });
+        setTimeout(() => setAvatarUploadFeedback(null), 4000);
+      } else {
+        setAvatarUploadFeedback({
+          type: 'error',
+          text: updateResult.error || (language === 'hi' ? 'डेटाबेस अपडेट विफल।' : 'Database update failed.')
+        });
+      }
+    } catch (err: unknown) {
+      setIsUploadingAvatar(false);
+      setAvatarUploadFeedback({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Unexpected error'
+      });
+    }
+  };
+
+  const triggerFileSelector = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   return (
-    <div className="p-5 rounded-2xl bg-gray-950/70 border border-gray-800 space-y-4">
+    <div className="p-5 sm:p-6 rounded-2xl bg-gray-950/70 border border-gray-800 space-y-5">
       <h4 className="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-2">
         <Upload className="w-4 h-4 text-blue-400" />
-        <span>{language === 'hi' ? 'प्रोफ़ाइल चित्र सेटिंग्स (Avatar Settings)' : 'Profile Picture & Avatar Upload'}</span>
+        <span>{language === 'hi' ? 'प्रोफ़ाइल चित्र सेटिंग्स (Profile Photo)' : 'Profile Picture & Avatar Settings'}</span>
       </h4>
+
+      {avatarUploadFeedback && (
+        <div className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 ${
+          avatarUploadFeedback.type === 'success' 
+            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' 
+            : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+        }`}>
+          {avatarUploadFeedback.type === 'success' ? <CheckCircle2 className="w-4.5 h-4.5 shrink-0" /> : <AlertCircle className="w-4.5 h-4.5 shrink-0" />}
+          <span>{avatarUploadFeedback.text}</span>
+        </div>
+      )}
       
-      <div className="flex flex-col sm:flex-row items-center gap-5">
-        {/* Current Avatar Preview */}
-        <div className="relative group shrink-0">
-          <div className="w-24 h-24 rounded-2xl overflow-hidden border border-blue-500/30 p-1 bg-gray-850 shadow-lg flex items-center justify-center">
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+        
+        {/* Interactive Click-to-Upload Photo Circle/Square */}
+        <div className="flex flex-col items-center gap-2 shrink-0">
+          <div 
+            onClick={triggerFileSelector}
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-dashed border-blue-500/40 hover:border-blue-400/85 p-1 bg-gray-900 shadow-xl cursor-pointer hover:scale-105 active:scale-95 transition-all group flex items-center justify-center relative"
+            title={language === 'hi' ? 'नया प्रोफ़ाइल चित्र चुनने के लिए क्लिक करें' : 'Click to select new profile picture'}
+          >
             {profile?.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt="Avatar Preview"
-                className="w-full h-full object-cover rounded-xl"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80';
-                }}
-              />
+              <>
+                <img
+                  src={profile.avatar_url}
+                  alt="Avatar Preview"
+                  className="w-full h-full object-cover rounded-xl group-hover:opacity-40 transition-opacity"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-blue-400">
+                  <FileUp className="w-6 h-6 animate-bounce" />
+                  <span className="text-[9px] font-bold text-white mt-1">
+                    {language === 'hi' ? 'बदलें' : 'CHANGE'}
+                  </span>
+                </div>
+              </>
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-2xl font-bold text-white rounded-xl">
-                VR
+              <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex flex-col items-center justify-center gap-1.5 text-white">
+                <FileUp className="w-6 h-6 text-blue-300" />
+                <span className="text-[10px] font-bold tracking-wide">VR</span>
               </div>
             )}
           </div>
+          <button 
+            type="button" 
+            onClick={triggerFileSelector}
+            className="text-[10px] text-blue-400 hover:text-blue-300 font-bold tracking-wide"
+          >
+            {language === 'hi' ? 'फोटो अपलोड करें ⚡' : 'Upload Photo ⚡'}
+          </button>
         </div>
 
-        {/* Upload Input & Actions */}
-        <div className="flex-1 space-y-2 text-center sm:text-left w-full">
-          <p className="text-xs text-gray-400 leading-relaxed">
-            {language === 'hi'
-              ? 'यहाँ से नया प्रोफ़ाइल चित्र अपलोड करें। यह सीधे "portfolio-media" बकेट में सुरक्षित रूप से सेव होकर तुरंत अपडेट हो जाएगा।'
-              : 'Choose an image from your device to upload directly to the "portfolio-media" Supabase Storage bucket and update instantly.'}
-          </p>
+        {/* Input & Form Configurations */}
+        <div className="flex-1 space-y-4 w-full">
+          
+          {/* File input (Hidden, triggered programmatically) */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            onChange={handleAvatarFileChange}
+            className="hidden"
+          />
 
-          <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2.5">
-            <label className="w-full sm:w-auto px-4 py-2 bg-gray-800 hover:bg-gray-750 text-gray-200 hover:text-white rounded-xl text-xs font-semibold cursor-pointer border border-gray-700 transition flex items-center justify-center gap-2">
-              <FileUp className="w-3.5 h-3.5 text-blue-400" />
-              <span>{avatarFile ? avatarFile.name : (language === 'hi' ? 'तस्वीर चुनें' : 'Select Avatar Image')}</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarFileChange}
-                className="hidden"
-              />
-            </label>
+          <div className="space-y-1.5">
+            <p className="text-xs text-gray-300 font-medium">
+              {language === 'hi'
+                ? '१. डिवाइस से फोटो अपलोड:'
+                : '1. Instant Upload from Device:'}
+            </p>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              {language === 'hi'
+                ? 'ऊपर दिए गए बॉक्स पर क्लिक करके सीधे अपने फ़ोन या लैपटॉप से तस्वीर चुनें। यह तुरंत अपलोड होकर ऑटोमैटिकली सेट हो जाएगी।'
+                : 'Click the square photo block above to browse or select an image directly. It uploads and updates instantly.'}
+            </p>
+          </div>
 
-            {avatarFile && (
+          <div className="border-t border-gray-900 pt-3 space-y-2">
+            <p className="text-xs text-gray-300 font-medium">
+              {language === 'hi'
+                ? '२. या इंटरनेट फोटो यूआरएल पेस्ट करें:'
+                : '2. Or Paste direct Image URL:'}
+            </p>
+            
+            <form onSubmit={handleUrlUpdateSubmit} className="flex gap-2">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
+                  <LinkIcon className="w-3.5 h-3.5" />
+                </div>
+                <input
+                  type="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  placeholder="https://example.com/photo.jpg"
+                  className="w-full bg-gray-900/90 border border-gray-800 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white outline-none focus:border-blue-500 transition"
+                />
+              </div>
               <button
-                type="button"
-                onClick={handleAvatarUpload}
-                disabled={isUploadingAvatar}
-                className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-md shadow-blue-600/10 active:scale-95"
+                type="submit"
+                disabled={isUploadingAvatar || !urlInput.trim() || urlInput === profile?.avatar_url}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-750 disabled:opacity-40 border border-gray-700 hover:border-gray-600 text-white rounded-xl text-xs font-semibold transition shrink-0"
               >
-                {isUploadingAvatar ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>{language === 'hi' ? `अपलोड हो रहा है (${uploadProgress}%)` : `Uploading (${uploadProgress}%)`}</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{language === 'hi' ? 'स्टोरेज में अपलोड करें' : 'Upload & Set Profile Photo'}</span>
-                  </>
-                )}
+                {language === 'hi' ? 'सहेजें' : 'Save URL'}
               </button>
-            )}
+            </form>
           </div>
 
           {/* Visual Progress Bar */}
           {isUploadingAvatar && (
-            <div className="w-full space-y-1.5 pt-1.5 max-w-md mx-auto sm:mx-0 animate-fade-in">
-              <div className="flex items-center justify-between text-xs font-semibold text-blue-400">
-                <span>{language === 'hi' ? 'अपलोड प्रगति:' : 'Uploading File:'}</span>
-                <span className="font-mono bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px]">{uploadProgress}%</span>
+            <div className="w-full space-y-1.5 pt-1 max-w-md animate-fade-in">
+              <div className="flex items-center justify-between text-[10px] font-bold text-blue-400">
+                <span>{language === 'hi' ? 'अपलोड की जा रही है...' : 'Uploading status...'}</span>
+                <span className="font-mono bg-blue-500/10 px-1.5 py-0.5 rounded">{uploadProgress}%</span>
               </div>
               <div className="w-full h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
                 <div 
@@ -171,14 +266,8 @@ export const AvatarSection: React.FC<AvatarSectionProps> = ({
             </div>
           )}
 
-          {avatarUploadFeedback && (
-            <p className={`text-xs mt-1 font-semibold ${
-              avatarUploadFeedback.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
-            }`}>
-              {avatarUploadFeedback.type === 'success' ? '✓ ' : '⚠️ '}{avatarUploadFeedback.text}
-            </p>
-          )}
         </div>
+        
       </div>
     </div>
   );

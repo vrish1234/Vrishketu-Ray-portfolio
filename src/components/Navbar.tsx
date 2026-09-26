@@ -1,6 +1,7 @@
 import React from 'react';
-import { Database, HardDrive, Languages, LogOut, ShieldCheck } from 'lucide-react';
+import { Database, HardDrive, Languages, LogOut, ShieldCheck, Lock, Sparkles } from 'lucide-react';
 import { Language } from '../types';
+import { Tooltip } from './Tooltip';
 
 interface NavbarProps {
   activeTab: 'portfolio' | 'admin';
@@ -11,6 +12,8 @@ interface NavbarProps {
   onToggleLanguage: () => void;
   isAdminAuthenticated: boolean;
   onLogout: () => void;
+  onOpenAdminLogin?: () => void;
+  onOpenConnectModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -21,7 +24,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   language,
   onToggleLanguage,
   isAdminAuthenticated,
-  onLogout
+  onLogout,
+  onOpenAdminLogin,
+  onOpenConnectModal
 }) => {
   return (
     <nav className="bg-gray-900/90 backdrop-blur-md border-b border-gray-800/80 sticky top-0 z-40 transition-colors">
@@ -78,6 +83,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
+          {/* Connect My ID quick button */}
+          {onOpenConnectModal && (
+            <button
+              onClick={onOpenConnectModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-sm transition hover:scale-105 active:scale-95"
+              title={language === 'hi' ? 'मेरी असली सोशल व गिटहब ID जोड़ें' : 'Connect My Real IDs & Content'}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>{language === 'hi' ? 'मेरी ID' : 'My ID'}</span>
+            </button>
+          )}
+
           {/* Language Toggle */}
           <button
             onClick={onToggleLanguage}
@@ -87,6 +104,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Languages className="w-3.5 h-3.5 text-blue-400" />
             <span>{language === 'hi' ? 'हिंदी' : 'EN'}</span>
           </button>
+
+          {/* Admin Login Trigger (when unauthenticated) wrapped in Tooltip */}
+          {!isAdminAuthenticated && onOpenAdminLogin && (
+            <Tooltip content="Admin Access" position="bottom">
+              <button
+                onClick={onOpenAdminLogin}
+                id="btn-navbar-admin-login"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/80 hover:bg-blue-600/20 text-gray-300 hover:text-blue-300 text-xs font-medium border border-gray-700 hover:border-blue-500/40 transition-all shadow-sm hover:scale-105 active:scale-95"
+                aria-label="Admin Access"
+              >
+                <Lock className="w-3.5 h-3.5 text-blue-400" />
+                <span>Admin</span>
+              </button>
+            </Tooltip>
+          )}
 
           {/* Authenticated Admin Controls */}
           {isAdminAuthenticated && (
@@ -102,18 +134,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 {language === 'hi' ? 'पोर्टफोलियो' : 'Portfolio'}
               </button>
-              <button
-                onClick={() => onTabChange('admin')}
-                id="btn-admin"
-                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 ${
-                  activeTab === 'admin'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{language === 'hi' ? 'एडमिन पैनल' : 'Admin'}</span>
-              </button>
+              <Tooltip content="Admin Access" position="bottom">
+                <button
+                  onClick={() => onTabChange('admin')}
+                  id="btn-admin"
+                  className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{language === 'hi' ? 'एडमिन पैनल' : 'Admin'}</span>
+                </button>
+              </Tooltip>
               <button
                 onClick={onLogout}
                 className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"

@@ -13,6 +13,8 @@ import {
   Save, 
   User, 
   Eye, 
+  EyeOff,
+  Star,
   AlertTriangle, 
   X, 
   LogOut, 
@@ -29,9 +31,22 @@ import {
   ShieldCheck,
   Instagram,
   Inbox,
-  CheckCircle2
+  CheckCircle2,
+  Clock,
+  Globe
 } from 'lucide-react';
-import { ProfileInfo, MediaPost, MediaType, Language, ContactMessage } from '../types';
+import { 
+  ProfileInfo, 
+  MediaPost, 
+  MediaType, 
+  Language, 
+  ContactMessage, 
+  Story,
+  GitHubRepo,
+  InstagramItem,
+  LinkedInPost,
+  SocialSyncConfig
+} from '../types';
 import { 
   uploadMediaFileToSupabase, 
   fetchContactMessages, 
@@ -41,6 +56,7 @@ import {
 } from '../lib/supabase';
 import { AvatarSection } from './AvatarSection';
 import { AdminDashboardStats } from './AdminDashboardStats';
+import { AdminSocialSync } from './AdminSocialSync';
 
 interface AdminPanelProps {
   profile: ProfileInfo;
@@ -48,11 +64,29 @@ interface AdminPanelProps {
   onUpdateProfile: (updated: Partial<ProfileInfo>) => Promise<{ success: boolean; error?: string }>;
   onAddPost: (post: Omit<MediaPost, 'id' | 'created_at' | 'post_likes'>) => Promise<{ success: boolean; error?: string }>;
   onDeletePost: (id: string | number) => Promise<{ success: boolean; error?: string }>;
+  onUpdatePost?: (postId: string | number, updates: Partial<MediaPost>) => Promise<{ success: boolean; post?: MediaPost; error?: string }>;
   language: Language;
   onOpenSupabaseModal: () => void;
   isSupabaseConnected: boolean;
   onSwitchToPortfolio: () => void;
   onLogout?: () => void;
+  stories: Story[];
+  onAddStory: (story: Omit<Story, 'id' | 'created_at'>) => Promise<{ success: boolean; error?: string }>;
+  onDeleteStory: (id: string | number) => Promise<{ success: boolean; error?: string }>;
+  // Social and GitHub live sync
+  socialConfig?: SocialSyncConfig;
+  onUpdateSocialConfig?: (config: Partial<SocialSyncConfig>) => Promise<void>;
+  githubRepos?: GitHubRepo[];
+  onSyncGitHub?: () => Promise<void>;
+  isSyncingGitHub?: boolean;
+  instagramItems?: InstagramItem[];
+  onAddInstagramItem?: (item: Omit<InstagramItem, 'id' | 'timestamp'>) => void;
+  onDeleteInstagramItem?: (id: string) => void;
+  linkedInPosts?: LinkedInPost[];
+  onAddLinkedInPost?: (post: Omit<LinkedInPost, 'id' | 'published_at'>) => void;
+  onDeleteLinkedInPost?: (id: string) => void;
+  onSyncAll?: () => Promise<void>;
+  isSyncingAll?: boolean;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -61,16 +95,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateProfile,
   onAddPost,
   onDeletePost,
+  onUpdatePost,
   language,
   onOpenSupabaseModal,
   isSupabaseConnected,
   onSwitchToPortfolio,
-  onLogout
+  onLogout,
+  stories,
+  onAddStory,
+  onDeleteStory,
+  socialConfig,
+  onUpdateSocialConfig,
+  githubRepos = [],
+  onSyncGitHub,
+  isSyncingGitHub = false,
+  instagramItems = [],
+  onAddInstagramItem,
+  onDeleteInstagramItem,
+  linkedInPosts = [],
+  onAddLinkedInPost,
+  onDeleteLinkedInPost,
+  onSyncAll,
+  isSyncingAll = false
 }) => {
   // Navigation Tabs in Admin
-  const [adminTab, setAdminTab] = useState<'projects' | 'messages' | 'likes' | 'profile' | 'analytics'>('projects');
+  const [adminTab, setAdminTab] = useState<'projects' | 'messages' | 'likes' | 'profile' | 'analytics' | 'stories' | 'social_sync'>('projects');
 
   // Profile Form State
+  const [profileName, setProfileName] = useState(profile?.name || '');
   const [profileTitle, setProfileTitle] = useState(profile?.title || '');
   const [profileBio, setProfileBio] = useState(profile?.bio || '');
   const [profileSkills, setProfileSkills] = useState(
@@ -80,12 +132,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   );
   const [profileAvatar, setProfileAvatar] = useState(profile?.avatar_url || '');
   const [profileEmail, setProfileEmail] = useState(profile?.email || '');
+  const [profileLocation, setProfileLocation] = useState(profile?.location || '');
+  const [profileTelegram, setProfileTelegram] = useState(profile?.telegram || '');
   const [profileGithub, setProfileGithub] = useState(profile?.github || '');
   const [profileLinkedin, setProfileLinkedin] = useState(profile?.linkedin || '');
   const [profileTwitter, setProfileTwitter] = useState(profile?.twitter || '');
   const [profileInstagram, setProfileInstagram] = useState(profile?.instagram || '');
+  const [profileVenture1, setProfileVenture1] = useState(profile?.venture_1 || '');
+  const [profileVenture2, setProfileVenture2] = useState(profile?.venture_2 || '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileFeedback, setProfileFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Stories Management State
+  const [storyFile, setStoryFile] = useState<File | null>(null);
+  const [storyTitle, setStoryTitle] = useState('');
+  const [storyCaption, setStoryCaption] = useState('');
+  const [isUploadingStory, setIsUploadingStory] = useState(false);
+  const [storyUploadProgress, setStoryUploadProgress] = useState(0);
+  const [storyFeedback, setStoryFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isDeletingStoryId, setIsDeletingStoryId] = useState<string | number | null>(null);
+
+  // Post Visibility & Featured Toggle State
+  const [togglingPostId, setTogglingPostId] = useState<string | number | null>(null);
+
+  const handleToggleFeatured = async (post: MediaPost) => {
+    if (!onUpdatePost) return;
+    setTogglingPostId(post.id);
+    const nextFeatured = !post.is_featured;
+    await onUpdatePost(post.id, { is_featured: nextFeatured });
+    setTogglingPostId(null);
+  };
+
+  const handleToggleHidden = async (post: MediaPost) => {
+    if (!onUpdatePost) return;
+    setTogglingPostId(post.id);
+    const nextHidden = !post.is_hidden;
+    await onUpdatePost(post.id, { is_hidden: nextHidden });
+    setTogglingPostId(null);
+  };
 
   const handleAvatarUpdated = (newUrl: string) => {
     setProfileAvatar(newUrl);
@@ -94,6 +178,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   useEffect(() => {
     if (profile) {
+      setProfileName(profile.name || '');
       setProfileTitle(profile.title || '');
       setProfileBio(profile.bio || '');
       setProfileSkills(
@@ -103,10 +188,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
       setProfileAvatar(profile.avatar_url || '');
       setProfileEmail(profile.email || '');
+      setProfileLocation(profile.location || '');
+      setProfileTelegram(profile.telegram || '');
       setProfileGithub(profile.github || '');
       setProfileLinkedin(profile.linkedin || '');
       setProfileTwitter(profile.twitter || '');
       setProfileInstagram(profile.instagram || '');
+      setProfileVenture1(profile.venture_1 || '');
+      setProfileVenture2(profile.venture_2 || '');
     }
   }, [profile]);
 
@@ -119,8 +208,84 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStatusText, setUploadStatusText] = useState<string | null>(null);
   const [isAddingPost, setIsAddingPost] = useState(false);
+  const [postUploadProgress, setPostUploadProgress] = useState(0);
   const [postFeedback, setPostFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Story Publishing and Deletion Handlers
+  const handlePublishStory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!storyFile) return;
+
+    setIsUploadingStory(true);
+    setStoryUploadProgress(0);
+    setStoryFeedback(null);
+
+    try {
+      // 1. Determine media type from file format
+      const media_type = storyFile.type.startsWith('video/') ? 'video' : 'image';
+
+      // 2. Upload file
+      const uploadResult = await uploadMediaFileToSupabase(storyFile, 'stories', (progress) => {
+        setStoryUploadProgress(progress);
+      });
+
+      if (!uploadResult.success || !uploadResult.publicUrl) {
+        setStoryFeedback({
+          type: 'error',
+          message: uploadResult.error || 'Failed uploading file to Supabase.'
+        });
+        setIsUploadingStory(false);
+        return;
+      }
+
+      // 3. Save inside database/local state
+      const res = await onAddStory({
+        media_url: uploadResult.publicUrl,
+        media_type: media_type as 'image' | 'video',
+        caption: storyCaption.trim(),
+        title: storyTitle.trim() || undefined
+      });
+
+      if (res.success) {
+        setStoryFeedback({
+          type: 'success',
+          message: language === 'hi' ? 'स्टोरी / हाईलाइट सफलतापूर्वक प्रकाशित की गई!' : 'Story / Highlight published successfully!'
+        });
+        setStoryFile(null);
+        setStoryTitle('');
+        setStoryCaption('');
+        const fileInput = document.getElementById('story-file-input') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+      } else {
+        setStoryFeedback({
+          type: 'error',
+          message: res.error || 'Failed publishing story.'
+        });
+      }
+    } catch (err: any) {
+      setStoryFeedback({
+        type: 'error',
+        message: err.message || 'An unexpected error occurred.'
+      });
+    } finally {
+      setIsUploadingStory(false);
+    }
+  };
+
+  const handleDeleteStoryClick = async (id: string | number) => {
+    setIsDeletingStoryId(id);
+    try {
+      const res = await onDeleteStory(id);
+      if (!res.success) {
+        alert(res.error || 'Failed deleting story');
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsDeletingStoryId(null);
+    }
+  };
 
   // Deleting Post state
   const [deletingId, setDeletingId] = useState<string | number | null>(null);
@@ -210,15 +375,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       .filter(Boolean);
 
     const result = await onUpdateProfile({
+      name: profileName,
       title: profileTitle,
       bio: profileBio,
       skills: skillsArray,
       avatar_url: profileAvatar,
       email: profileEmail,
+      location: profileLocation,
+      telegram: profileTelegram,
       github: profileGithub,
       linkedin: profileLinkedin,
       twitter: profileTwitter,
-      instagram: profileInstagram
+      instagram: profileInstagram,
+      venture_1: profileVenture1,
+      venture_2: profileVenture2
     });
 
     setIsSavingProfile(false);
@@ -263,7 +433,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
 
       // 1. Upload to Supabase Storage bucket
-      const uploadResult = await uploadMediaFileToSupabase(selectedFile);
+      setPostUploadProgress(0);
+      const uploadResult = await uploadMediaFileToSupabase(selectedFile, 'posts', (progress) => {
+        setPostUploadProgress(progress);
+      });
 
       if (!uploadResult.success || !uploadResult.publicUrl) {
         setIsAddingPost(false);
@@ -520,6 +693,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
 
           <button
+            onClick={() => setAdminTab('stories')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
+              adminTab === 'stories'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800 hover:border-gray-700'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+            <span>{language === 'hi' ? '24h स्टोरीज' : '24h Stories'}</span>
+            {stories.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-mono font-bold animate-pulse">
+                {stories.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setAdminTab('profile')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
               adminTab === 'profile'
@@ -529,6 +719,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <User className="w-3.5 h-3.5 text-blue-400" />
             <span>{language === 'hi' ? 'प्रोफाइल सेटिंग्स' : 'Profile Settings'}</span>
+          </button>
+
+          <button
+            onClick={() => setAdminTab('social_sync')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
+              adminTab === 'social_sync'
+                ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-pink-600 text-white shadow-md shadow-blue-600/25'
+                : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800 hover:border-gray-700'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{language === 'hi' ? 'सोशल व गिटहब सिंक' : 'Social & Code Sync'}</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </button>
         </div>
 
@@ -764,9 +967,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
 
               {uploadStatusText && (
-                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center gap-2.5 text-blue-300 text-xs animate-pulse">
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                  <span>{uploadStatusText}</span>
+                <div className="space-y-2">
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center gap-2.5 text-blue-300 text-xs animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span>{uploadStatusText}</span>
+                  </div>
+                  {postUploadProgress > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px] font-mono text-gray-400">
+                        <span>Uploading file...</span>
+                        <span className="text-blue-400 font-bold">{postUploadProgress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-950 rounded-full h-1.5 overflow-hidden border border-gray-800">
+                        <div 
+                          className="bg-blue-500 h-full rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${postUploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -860,11 +1079,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 self-end sm:self-center">
+                      <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+                        {/* Toggle Featured on Front Page (Home) */}
+                        <button
+                          onClick={() => handleToggleFeatured(post)}
+                          disabled={togglingPostId === post.id}
+                          className={`px-2.5 py-1.5 rounded-xl border text-xs font-medium transition flex items-center gap-1.5 ${
+                            post.is_featured
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/10'
+                              : 'bg-gray-800/80 text-gray-400 hover:text-amber-300 hover:bg-gray-800 border-gray-700'
+                          }`}
+                          title={language === 'hi' ? 'होमपेज पर दिखाएं (Featured)' : 'Toggle Featured on Front Page'}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${post.is_featured ? 'fill-amber-400 text-amber-400' : ''}`} />
+                          <span>{post.is_featured ? (language === 'hi' ? 'होमपेज पर' : 'Featured') : (language === 'hi' ? 'फ़ीचर करें' : 'Feature')}</span>
+                        </button>
+
+                        {/* Toggle Hidden / Visible */}
+                        <button
+                          onClick={() => handleToggleHidden(post)}
+                          disabled={togglingPostId === post.id}
+                          className={`px-2.5 py-1.5 rounded-xl border text-xs font-medium transition flex items-center gap-1.5 ${
+                            post.is_hidden
+                              ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                              : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-800 border-gray-700'
+                          }`}
+                          title={language === 'hi' ? 'प्रोजेक्ट छुपाएं / दिखाएं' : 'Toggle Hide/Show'}
+                        >
+                          {post.is_hidden ? <EyeOff className="w-3.5 h-3.5 text-purple-400" /> : <Eye className="w-3.5 h-3.5" />}
+                          <span>{post.is_hidden ? (language === 'hi' ? 'छुपाएं' : 'Hidden') : (language === 'hi' ? 'दिखेगा' : 'Visible')}</span>
+                        </button>
+
                         <button
                           onClick={() => promptDeletePost(post)}
                           disabled={deletingId === post.id}
-                          className="px-3 py-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl border border-rose-500/20 text-xs font-medium transition flex items-center gap-1.5"
+                          className="px-2.5 py-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl border border-rose-500/20 text-xs font-medium transition flex items-center gap-1.5"
                           title={language === 'hi' ? 'पोस्ट हटाएं' : 'Delete Project'}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1063,6 +1312,265 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
+      {/* TAB 6: 24h Story Publisher and Manager */}
+      {adminTab === 'stories' && (
+        <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-8 animate-fade-in">
+          
+          {/* Header Banner */}
+          <div className="flex items-center justify-between border-b border-gray-800 pb-4 flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-pink-500/10 text-pink-400 flex items-center justify-center border border-pink-500/20">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white font-heading">
+                  {language === 'hi' ? '24 घंटे व्हाट्सएप/इंस्टाग्राम स्टोरीज' : '24-Hour WhatsApp & Instagram Stories'}
+                </h3>
+                <p className="text-xs text-gray-400">
+                  {language === 'hi' ? 'स्टोरी अपलोड करें जो दर्शकों को 24 घंटे दिखाई देगी' : 'Publish interactive updates that automatically expire after exactly 24 hours'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="text-xs text-gray-400 font-semibold bg-gray-950 px-3 py-1.5 rounded-xl border border-gray-800">
+              {language === 'hi' ? `सक्रिय स्टोरीज: ${stories.length}` : `Active Stories: ${stories.length}`}
+            </div>
+          </div>
+
+          {/* Core Structure: Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            
+            {/* Left side column: Story publishing form */}
+            <div className="lg:col-span-2 space-y-5 bg-gray-950/40 p-5 rounded-2xl border border-gray-800/80">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Upload className="w-4 h-4 text-pink-400" />
+                <span>{language === 'hi' ? 'नई स्टोरी जोड़ें' : 'Publish New Story'}</span>
+              </h4>
+
+              {storyFeedback && (
+                <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                  storyFeedback.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                }`}>
+                  {storyFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                  <span>{storyFeedback.message}</span>
+                </div>
+              )}
+
+              <form onSubmit={handlePublishStory} className="space-y-4">
+                
+                {/* Highlight Title / Name */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                    {language === 'hi' ? 'हाईलाइट का नाम / शीर्षक (उदा: मुक्त विश्वविद्यालय):' : 'Highlight Title (e.g. Open University):'}
+                  </label>
+                  <input 
+                    type="text"
+                    value={storyTitle}
+                    onChange={(e) => setStoryTitle(e.target.value)}
+                    placeholder={language === 'hi' ? 'जैसे: मुक्त विश्वविद्यालय, AI-Edura, टेक विजन' : 'e.g. Open University, AI-Edura'}
+                    maxLength={30}
+                    className="w-full text-xs p-3 rounded-xl bg-gray-950 border border-gray-800 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 text-white outline-none"
+                  />
+                  <p className="text-[10px] text-gray-500">
+                    {language === 'hi' 
+                      ? 'यह नाम होमपेज पर गोल हाइलाइट सर्कल के नीचे प्रदर्शित होगा।'
+                      : 'This title will appear beneath the circular highlight ring on the home page.'}
+                  </p>
+                </div>
+
+                {/* File picker */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                    {language === 'hi' ? 'वीडियो या फोटो फ़ाइल चुनें:' : 'Select Media File (Image/Video):'}
+                  </label>
+                  <div className="relative group rounded-xl border-2 border-dashed border-gray-800 hover:border-pink-500/50 p-6 text-center transition bg-gray-950 flex flex-col items-center justify-center gap-2">
+                    <input 
+                      type="file" 
+                      id="story-file-input"
+                      accept="image/*,video/*"
+                      required
+                      disabled={isUploadingStory}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setStoryFile(file);
+                        setStoryFeedback(null);
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer disabled:pointer-events-none"
+                    />
+                    
+                    {storyFile ? (
+                      <div className="space-y-1 z-10 pointer-events-none">
+                        <p className="text-xs font-bold text-pink-400 truncate max-w-[200px]">{storyFile.name}</p>
+                        <p className="text-[10px] text-gray-500">{(storyFile.size / (1024 * 1024)).toFixed(2)} MB • {storyFile.type}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-8 h-8 text-gray-600 group-hover:text-pink-400 transition-colors" />
+                        <div className="text-xs text-gray-400 font-medium pointer-events-none">
+                          {language === 'hi' ? 'फ़ाइल अपलोड करने के लिए क्लिक करें' : 'Click to Browse File'}
+                        </div>
+                        <p className="text-[10px] text-gray-500">Supports PNG, JPG, WEBP, MP4</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Caption field */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                    {language === 'hi' ? 'स्टोरी कैप्शन (वैकल्पिक):' : 'Story Caption (Optional):'}
+                  </label>
+                  <textarea 
+                    value={storyCaption}
+                    onChange={(e) => setStoryCaption(e.target.value)}
+                    placeholder={language === 'hi' ? 'अपनी स्टोरी के नीचे कैप्शन लिखें...' : 'Type a caption to overlay...'}
+                    maxLength={150}
+                    rows={2}
+                    className="w-full text-xs p-3 rounded-xl bg-gray-950 border border-gray-800 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 text-white outline-none resize-none"
+                  />
+                  <div className="text-right text-[9px] text-gray-500 font-semibold">
+                    {storyCaption.length}/150
+                  </div>
+                </div>
+
+                {/* Visual upload progress bar */}
+                {isUploadingStory && (
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center justify-between text-[10px] text-pink-400 font-semibold">
+                      <span>{language === 'hi' ? 'अपलोड किया जा रहा है...' : 'Uploading status...'}</span>
+                      <span className="font-mono">{storyUploadProgress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-950 rounded-full overflow-hidden border border-gray-800">
+                      <div 
+                        className="h-full bg-gradient-to-r from-pink-500 to-amber-500 transition-all duration-300 rounded-full"
+                        style={{ width: `${storyUploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  disabled={!storyFile || isUploadingStory}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 disabled:from-gray-800 disabled:to-gray-800 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg hover:shadow-pink-500/10 active:scale-98 disabled:pointer-events-none"
+                >
+                  {isUploadingStory ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{language === 'hi' ? `अपलोड प्रगति: ${storyUploadProgress}%` : `Uploading: ${storyUploadProgress}%`}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>{language === 'hi' ? 'स्टोरी अभी पोस्ट करें ⚡' : 'Publish Story Now ⚡'}</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Right side column: Active stories list manager */}
+            <div className="lg:col-span-3 space-y-4">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Clock className="w-4 h-4 text-indigo-400" />
+                <span>{language === 'hi' ? 'वर्तमान सक्रिय स्टोरीज (Active Statuses)' : 'Currently Live 24h Stories'}</span>
+              </h4>
+
+              {stories.length === 0 ? (
+                <div className="h-[280px] rounded-2xl border border-dashed border-gray-800 flex flex-col items-center justify-center text-center p-6 bg-gray-950/20">
+                  <Sparkles className="w-10 h-10 text-gray-700 animate-pulse mb-3" />
+                  <p className="text-xs font-bold text-gray-400">
+                    {language === 'hi' ? 'कोई सक्रिय स्टोरी उपलब्ध नहीं है।' : 'No active stories currently live.'}
+                  </p>
+                  <p className="text-[10px] text-gray-500 max-w-xs mt-1 leading-relaxed">
+                    {language === 'hi' 
+                      ? 'अपनी नई स्टोरी जोड़ें। यह आपके होमपेज पर अवतार के चारों ओर रंगीन इंस्टाग्राम रिंग के रूप में लाइव दिखाई देगी।' 
+                      : 'Create a story above to see a beautiful WhatsApp/Instagram style glowing ring around your avatar picture.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[460px] overflow-y-auto pr-1">
+                  {stories.map((story) => {
+                    const ageHours = Math.max(0, Math.floor((Date.now() - new Date(story.created_at).getTime()) / (1000 * 60 * 60)));
+                    const timeLeftHours = Math.max(0, 24 - ageHours);
+
+                    return (
+                      <div 
+                        key={story.id} 
+                        className="p-3.5 rounded-2xl bg-gray-950/75 border border-gray-800 flex flex-col justify-between gap-3 group relative overflow-hidden"
+                      >
+                        {/* Background subtle indicator */}
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/[0.01] rounded-full pointer-events-none" />
+
+                        <div className="flex items-start gap-3">
+                          {/* Story Thumbnail preview */}
+                          <div className="w-16 h-20 rounded-xl overflow-hidden shrink-0 bg-black border border-gray-800 flex items-center justify-center relative">
+                            {story.media_type === 'video' ? (
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <VideoIcon className="w-4 h-4 text-pink-400" />
+                                <span className="text-[8px] text-gray-400 font-mono font-bold">VIDEO</span>
+                              </div>
+                            ) : (
+                              <img 
+                                src={story.media_url} 
+                                alt={story.caption || 'Thumbnail'} 
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+
+                          {/* Story Age / Meta Info */}
+                          <div className="min-w-0 flex-1 space-y-1">
+                            {story.title && (
+                              <span className="inline-block text-[11px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                                🌟 {story.title}
+                              </span>
+                            )}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-gray-300">
+                                {language === 'hi' ? `${ageHours} घंटे पहले` : `${ageHours}h ago`}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-bold">
+                                {language === 'hi' ? `${timeLeftHours} घंटे शेष` : `${timeLeftHours}h left`}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 font-medium line-clamp-2">
+                              {story.caption || (language === 'hi' ? '(कोई कैप्शन नहीं)' : '(No caption text)')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Story item delete interface */}
+                        <div className="flex items-center justify-between border-t border-gray-900 pt-2 text-[10px]">
+                          <span className="text-gray-500 font-semibold uppercase tracking-wider">
+                            Format: {story.media_type}
+                          </span>
+                          
+                          <button
+                            onClick={() => handleDeleteStoryClick(story.id)}
+                            disabled={isDeletingStoryId === story.id}
+                            className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500 hover:text-white border border-rose-500/20 text-rose-400 transition flex items-center gap-1 hover:scale-105 active:scale-95 disabled:opacity-50"
+                          >
+                            {isDeletingStoryId === story.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3" />
+                            )}
+                            <span>{language === 'hi' ? 'हटाएं' : 'Delete'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* TAB 4: Profile Settings */}
       {adminTab === 'profile' && (
         <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6 animate-fade-in">
@@ -1099,6 +1607,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           />
 
           <form id="profile-form" onSubmit={handleProfileSubmit} className="space-y-4 pt-2">
+            
+            {/* Name & Location Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  {language === 'hi' ? 'आपका पूरा नाम (Full Name)' : 'Full Name'}
+                </label>
+                <input
+                  type="text"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  placeholder="e.g. Vrishketu Ray"
+                  className="w-full bg-gray-800/90 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  {language === 'hi' ? 'स्थान / देश (Location)' : 'Location'}
+                </label>
+                <input
+                  type="text"
+                  value={profileLocation}
+                  onChange={(e) => setProfileLocation(e.target.value)}
+                  placeholder="e.g. India"
+                  className="w-full bg-gray-800/90 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none focus:border-blue-500 transition"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                 {language === 'hi' ? 'Title / Tagline (शीर्षक)' : 'Title / Professional Tagline'}
@@ -1142,6 +1681,46 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               />
             </div>
 
+            {/* Ventures & Highlight Badges Sub-form */}
+            <div className="bg-gray-950/70 p-4 rounded-2xl border border-gray-800 space-y-3.5">
+              <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>{language === 'hi' ? 'मुख्य संस्थाएं व उपलब्धियां (Ventures & Highlights)' : 'Ventures & Highlights (Hero Badges)'}</span>
+              </h4>
+              <p className="text-[11px] text-gray-400">
+                {language === 'hi' 
+                  ? 'ये उपलब्धियां मुख्य स्क्रीन पर रॉकेट और स्टार आइकन के साथ चमकीले बक्से के रूप में दिखेंगी।' 
+                  : 'These badges appear on the main screen below your bio with rocket and star icons.'}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-300 mb-1.5">
+                    {language === 'hi' ? 'संस्था १ (Highlight 1)' : 'Highlight Venture 1'}
+                  </label>
+                  <input
+                    type="text"
+                    value={profileVenture1}
+                    onChange={(e) => setProfileVenture1(e.target.value)}
+                    placeholder="e.g. Founder: Ugrasena Educum"
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-300 mb-1.5">
+                    {language === 'hi' ? 'संस्था २ (Highlight 2)' : 'Highlight Venture 2'}
+                  </label>
+                  <input
+                    type="text"
+                    value={profileVenture2}
+                    onChange={(e) => setProfileVenture2(e.target.value)}
+                    placeholder="e.g. Creator: AI-Edura"
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1.5">
@@ -1170,7 +1749,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Social profiles grid (Expanded to 5 columns for Telegram) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-300 mb-1.5">
                   LinkedIn URL
@@ -1223,6 +1803,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full bg-gray-800/90 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-pink-500 transition"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  Telegram URL
+                </label>
+                <input
+                  type="url"
+                  value={profileTelegram}
+                  onChange={(e) => setProfileTelegram(e.target.value)}
+                  placeholder="https://t.me/username"
+                  className="w-full bg-gray-800/90 border border-gray-700 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-blue-500 transition"
+                />
+              </div>
             </div>
 
             <button
@@ -1239,6 +1832,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </button>
           </form>
         </div>
+      )}
+
+      {/* TAB 7: Live Social & GitHub Sync Hub */}
+      {adminTab === 'social_sync' && (
+        <AdminSocialSync
+          socialConfig={socialConfig || {
+            github_username: 'vrishketu-ray',
+            github_auto_sync: true,
+            instagram_username: 'thevrishbihari',
+            instagram_auto_sync: true,
+            linkedin_profile_url: 'https://linkedin.com/in/vrishketu-ray',
+            linkedin_auto_sync: true
+          }}
+          onUpdateSocialConfig={onUpdateSocialConfig || (async () => {})}
+          githubRepos={githubRepos}
+          onSyncGitHub={onSyncGitHub || (async () => {})}
+          isSyncingGitHub={isSyncingGitHub}
+          instagramItems={instagramItems}
+          onAddInstagramItem={onAddInstagramItem || (() => {})}
+          onDeleteInstagramItem={onDeleteInstagramItem || (() => {})}
+          linkedInPosts={linkedInPosts}
+          onAddLinkedInPost={onAddLinkedInPost || (() => {})}
+          onDeleteLinkedInPost={onDeleteLinkedInPost || (() => {})}
+          onSyncAll={onSyncAll || (async () => {})}
+          isSyncingAll={isSyncingAll}
+          language={language}
+        />
       )}
 
       {/* Confirmation Modal for Post Deletion */}

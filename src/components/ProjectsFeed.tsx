@@ -13,7 +13,9 @@ import {
   X,
   Send,
   Lock,
-  CheckCircle2
+  CheckCircle2,
+  ArrowRight,
+  Star
 } from 'lucide-react';
 import { MediaPost, MediaType, Language } from '../types';
 
@@ -22,13 +24,19 @@ interface ProjectsFeedProps {
   onLike: (postId: string | number, visitorName: string) => Promise<boolean>;
   onComment?: (postId: string | number, visitorName: string, commentText: string) => Promise<boolean>;
   language: Language;
+  isLoading?: boolean;
+  isCompact?: boolean;
+  onViewAllProjects?: () => void;
 }
 
 export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
   posts,
   onLike,
   onComment,
-  language
+  language,
+  isLoading = false,
+  isCompact = false,
+  onViewAllProjects
 }) => {
   const [activeLikePost, setActiveLikePost] = useState<MediaPost | null>(null);
   const [activeCommentPost, setActiveCommentPost] = useState<MediaPost | null>(null);
@@ -57,6 +65,47 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
   const [filterType, setFilterType] = useState<'all' | MediaType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | number | null>(null);
+
+  // SKELETON SCREEN PLACEHOLDER WHILE DATA IS BEING FETCHED
+  if (isLoading) {
+    return (
+      <section className="space-y-6 animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+          <div className="space-y-2">
+            <div className="h-8 bg-gray-800 rounded-xl w-60" />
+            <div className="h-4 bg-gray-800/60 rounded w-80 max-w-full" />
+          </div>
+          <div className="h-9 w-48 bg-gray-800/60 rounded-xl" />
+        </div>
+
+        {/* Search bar skeleton */}
+        <div className="h-11 bg-gray-800/40 rounded-xl w-full" />
+
+        {/* Project Card Skeletons */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[1, 2].map((idx) => (
+            <div key={idx} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <div className="h-5 w-24 bg-gray-800 rounded-full" />
+                <div className="h-5 w-16 bg-gray-800 rounded" />
+              </div>
+              <div className="h-6 w-3/4 bg-gray-800 rounded-lg" />
+              <div className="space-y-2">
+                <div className="h-4 w-full bg-gray-800/60 rounded" />
+                <div className="h-4 w-4/5 bg-gray-800/50 rounded" />
+              </div>
+              <div className="h-52 bg-gray-800/80 rounded-xl w-full" />
+              <div className="flex justify-between items-center pt-2 border-t border-gray-800">
+                <div className="h-8 w-24 bg-gray-800 rounded-lg" />
+                <div className="h-8 w-24 bg-gray-800 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   const handleOpenLikeModal = (post: MediaPost) => {
     setActiveLikePost(post);
@@ -137,105 +186,149 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
     }
   };
 
-  const filteredPosts = posts.filter(post => {
-    const matchesType = filterType === 'all' || post.media_type === filterType;
-    const matchesSearch = 
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (post.description && post.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesType && matchesSearch;
-  });
+  // Filter out posts hidden by admin
+  const visiblePosts = posts.filter(post => !post.is_hidden);
+
+  // If in compact mode (Front page / Home feed):
+  // User requested: "mera post ke bare mein ek do post ke bare mein jaega aur kuchh nahin"
+  // Prioritize admin-featured projects, or default to latest 2 projects
+  let filteredPosts: MediaPost[] = [];
+  if (isCompact) {
+    const featured = visiblePosts.filter(p => p.is_featured);
+    const regular = visiblePosts.filter(p => !p.is_featured);
+    filteredPosts = [...featured, ...regular].slice(0, 2);
+  } else {
+    filteredPosts = visiblePosts.filter(post => {
+      const matchesType = filterType === 'all' || post.media_type === filterType;
+      const matchesSearch = 
+        post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (post.description && post.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesType && matchesSearch;
+    });
+  }
 
   return (
     <section className="space-y-6">
       {/* Header and Filter Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-heading flex items-center gap-2.5">
-            <span>{language === 'hi' ? 'प्रोजेक्ट्स और मीडिया अपलोड्स' : 'Projects & Uploads'}</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-sans">
-              {filteredPosts.length}
-            </span>
-          </h2>
-          <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
-            {language === 'hi'
-              ? 'फुल-स्टैक ऍप्लिकेशन्स, एडटेक प्लेटफ़ॉर्म और तकनीकी प्रोजेक्ट्स की लाइव गैलरी'
-              : 'Interactive showcase of full-stack projects, digital media, and platform demos'}
-          </p>
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1 text-xs">
-            <button
-              onClick={() => setFilterType('all')}
-              className={`px-3 py-1.5 rounded-lg transition font-medium ${
-                filterType === 'all'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {language === 'hi' ? 'सभी' : 'All'}
-            </button>
-            <button
-              onClick={() => setFilterType('image')}
-              className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
-                filterType === 'image'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <ImageIcon className="w-3 h-3" />
-              <span>{language === 'hi' ? 'तस्वीरें' : 'Images'}</span>
-            </button>
-            <button
-              onClick={() => setFilterType('video')}
-              className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
-                filterType === 'video'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <VideoIcon className="w-3 h-3" />
-              <span>{language === 'hi' ? 'वीडियो' : 'Videos'}</span>
-            </button>
-            <button
-              onClick={() => setFilterType('audio')}
-              className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
-                filterType === 'audio'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <Music className="w-3 h-3" />
-              <span>{language === 'hi' ? 'ऑडियो' : 'Audio'}</span>
-            </button>
+      {isCompact ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+          <div>
+            <div className="flex items-center gap-2 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-1">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>{language === 'hi' ? 'स्पॉटलाइट प्रोजेक्ट्स' : 'Spotlight Projects'}</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-heading">
+              {language === 'hi' ? '🔥 चुनिंदा प्रोजेक्ट्स' : '🔥 Featured Highlights'}
+            </h2>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+              {language === 'hi'
+                ? 'Vrishketu Ray द्वारा निर्मित प्रमुख एडटेक व डिजिटल इनोवेशन्स की एक संक्षिप्त झलक।'
+                : 'A curated spotlight on key production software systems and digital ventures.'}
+            </p>
           </div>
-        </div>
-      </div>
 
-      {/* Search Input Bar */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-3" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={
-            language === 'hi'
-              ? 'शीर्षक, विवरण या तकनीक द्वारा खोजें...'
-              : 'Search projects by keyword, technology, or description...'
-          }
-          className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-gray-200 outline-none focus:border-blue-500 transition"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+          {onViewAllProjects && (
+            <button
+              onClick={onViewAllProjects}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 border border-blue-500/30 text-blue-300 hover:text-white text-xs font-bold transition shadow-sm self-start sm:self-auto hover:scale-105 active:scale-95"
+            >
+              <span>{language === 'hi' ? `सभी प्रोजेक्ट्स देखें (${visiblePosts.length})` : `Explore All (${visiblePosts.length})`}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-heading flex items-center gap-2.5">
+                <span>{language === 'hi' ? 'प्रोजेक्ट्स और मीडिया अपलोड्स' : 'Projects & Uploads'}</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-sans">
+                  {filteredPosts.length}
+                </span>
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5">
+                {language === 'hi'
+                  ? 'फुल-स्टैक ऍप्लिकेशन्स, एडटेक प्लेटफ़ॉर्म और तकनीकी प्रोजेक्ट्स की लाइव गैलरी'
+                  : 'Interactive showcase of full-stack projects, digital media, and platform demos'}
+              </p>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1 text-xs">
+                <button
+                  onClick={() => setFilterType('all')}
+                  className={`px-3 py-1.5 rounded-lg transition font-medium ${
+                    filterType === 'all'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {language === 'hi' ? 'सभी' : 'All'}
+                </button>
+                <button
+                  onClick={() => setFilterType('image')}
+                  className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
+                    filterType === 'image'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <ImageIcon className="w-3 h-3" />
+                  <span>{language === 'hi' ? 'तस्वीरें' : 'Images'}</span>
+                </button>
+                <button
+                  onClick={() => setFilterType('video')}
+                  className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
+                    filterType === 'video'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <VideoIcon className="w-3 h-3" />
+                  <span>{language === 'hi' ? 'वीडियो' : 'Videos'}</span>
+                </button>
+                <button
+                  onClick={() => setFilterType('audio')}
+                  className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
+                    filterType === 'audio'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Music className="w-3 h-3" />
+                  <span>{language === 'hi' ? 'ऑडियो' : 'Audio'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Search Input Bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                language === 'hi'
+                  ? 'शीर्षक, विवरण या तकनीक द्वारा खोजें...'
+                  : 'Search projects by keyword, technology, or description...'
+              }
+              className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-gray-200 outline-none focus:border-blue-500 transition"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Grid of Posts */}
       <div id="posts-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -451,6 +544,24 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
           })
         )}
       </div>
+
+      {/* View All Projects Button in Compact / Home Feed View */}
+      {isCompact && onViewAllProjects && (
+        <div className="pt-2 flex justify-center">
+          <button
+            onClick={onViewAllProjects}
+            className="group inline-flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm shadow-xl shadow-blue-600/25 hover:shadow-blue-600/40 transition-all duration-300 hover:scale-105 active:scale-95 border border-white/10"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+            <span>
+              {language === 'hi'
+                ? `🚀 सभी ${visiblePosts.length} प्रोजेक्ट्स और वर्क्स देखें`
+                : `🚀 Explore All ${visiblePosts.length} Works & Demos`}
+            </span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      )}
 
       {/* Visitor Like Prompt Modal */}
       {activeLikePost && (

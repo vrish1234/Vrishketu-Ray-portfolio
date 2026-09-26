@@ -1,4 +1,4 @@
-import { ProfileInfo, MediaPost } from '../types';
+import { ProfileInfo, MediaPost, Story } from '../types';
 
 export const DEFAULT_PROFILE: ProfileInfo = {
   id: 1,
@@ -23,7 +23,9 @@ export const DEFAULT_PROFILE: ProfileInfo = {
   linkedin: 'https://linkedin.com/in/vrishketu-ray',
   github: 'https://github.com',
   twitter: 'https://twitter.com',
-  location: 'India'
+  location: 'India',
+  venture_1: 'Founder: Ugrasena Educum',
+  venture_2: 'Creator: AI-Edura'
 };
 
 export const DEFAULT_MESSAGES = [
@@ -133,6 +135,45 @@ export const DEFAULT_POSTS: MediaPost[] = [
         created_at: new Date(Date.now() - 3600000 * 24 * 2).toISOString()
       }
     ]
+  }
+];
+
+export const DEFAULT_STORIES: Story[] = [
+  {
+    id: 'story-1',
+    title: 'मुक्त विश्वविद्यालय',
+    media_url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=800&q=80',
+    media_type: 'image',
+    caption: 'मुक्त विश्वविद्यालय (Open University) विजन - हर छात्र तक आधुनिक व निशुल्क डिजिटल उच्च शिक्षा पहुँचाने का संकल्प।',
+    created_at: new Date().toISOString(),
+    is_active: true
+  },
+  {
+    id: 'story-2',
+    title: 'AI-Edura',
+    media_url: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
+    media_type: 'image',
+    caption: 'AI-Edura: जेमिनी AI आधारित व्यक्तिगत मेंटरिंग और स्मार्ट स्टूडेंट असेसमेंट सिस्टम।',
+    created_at: new Date().toISOString(),
+    is_active: true
+  },
+  {
+    id: 'story-3',
+    title: 'The Vrish Bihari',
+    media_url: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=800&q=80',
+    media_type: 'image',
+    caption: 'The Vrish Bihari वेंचर: बिहार से तकनीकी नवाचार और डिजिटल क्रांति का नेतृत्व।',
+    created_at: new Date().toISOString(),
+    is_active: true
+  },
+  {
+    id: 'story-4',
+    title: 'टेक आर्किटेक्चर',
+    media_url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80',
+    media_type: 'image',
+    caption: 'सुपाबेस, रिएक्ट, और नेक्स्ट.जेएस के साथ स्केलेबल क्लाउड इंजीनियरिंग।',
+    created_at: new Date().toISOString(),
+    is_active: true
   }
 ];
 

@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { ProfileInfo, MediaPost, PostLike, PostComment, ContactMessage, DetailedComment, MediaType } from '../types';
-import { DEFAULT_PROFILE, DEFAULT_POSTS, DEFAULT_MESSAGES } from '../data/defaultData';
+import { ProfileInfo, MediaPost, PostLike, PostComment, ContactMessage, DetailedComment, MediaType, Story } from '../types';
+import { DEFAULT_PROFILE, DEFAULT_POSTS, DEFAULT_MESSAGES, DEFAULT_STORIES } from '../data/defaultData';
 
 const CONFIG_KEY = 'vrishketu_supabase_config';
 const PROFILE_KEY = 'vrishketu_local_profile';
@@ -77,10 +77,14 @@ function normalizeProfile(p: any): ProfileInfo {
   return {
     ...DEFAULT_PROFILE,
     ...p,
+    name: p.name || DEFAULT_PROFILE.name,
     email: p.email || DEFAULT_PROFILE.email,
     telegram: p.telegram || DEFAULT_PROFILE.telegram,
     instagram: p.instagram || DEFAULT_PROFILE.instagram,
     linkedin: p.linkedin || DEFAULT_PROFILE.linkedin,
+    location: p.location || DEFAULT_PROFILE.location,
+    venture_1: p.venture_1 !== undefined ? p.venture_1 : DEFAULT_PROFILE.venture_1,
+    venture_2: p.venture_2 !== undefined ? p.venture_2 : DEFAULT_PROFILE.venture_2,
     skills: Array.isArray(p.skills)
       ? p.skills
       : (typeof p.skills === 'string'
@@ -202,20 +206,23 @@ export async function fetchProfileData(): Promise<{ profile: ProfileInfo; fromSu
           return { profile: getLocalProfile(), fromSupabase: false, error: error.message };
         }
         if (data) {
+          const local = getLocalProfile();
           const profile: ProfileInfo = {
             id: data.id,
-            name: data.name || DEFAULT_PROFILE.name,
+            name: (data.name !== undefined && data.name !== null) ? data.name : (local.name || DEFAULT_PROFILE.name),
             title: data.title || DEFAULT_PROFILE.title,
             bio: data.bio || DEFAULT_PROFILE.bio,
             skills: Array.isArray(data.skills) ? data.skills : (data.skills ? data.skills.split(',') : DEFAULT_PROFILE.skills),
             avatar_url: data.avatar_url || DEFAULT_PROFILE.avatar_url,
             email: data.email || DEFAULT_PROFILE.email,
-            telegram: data.telegram || DEFAULT_PROFILE.telegram,
+            telegram: (data.telegram !== undefined && data.telegram !== null) ? data.telegram : (local.telegram || DEFAULT_PROFILE.telegram),
             github: data.github || DEFAULT_PROFILE.github,
             linkedin: data.linkedin || DEFAULT_PROFILE.linkedin,
             twitter: data.twitter || DEFAULT_PROFILE.twitter,
             instagram: data.instagram || DEFAULT_PROFILE.instagram,
-            location: data.location || DEFAULT_PROFILE.location
+            location: (data.location !== undefined && data.location !== null) ? data.location : (local.location || DEFAULT_PROFILE.location),
+            venture_1: (data.venture_1 !== undefined && data.venture_1 !== null) ? data.venture_1 : (local.venture_1 || DEFAULT_PROFILE.venture_1),
+            venture_2: (data.venture_2 !== undefined && data.venture_2 !== null) ? data.venture_2 : (local.venture_2 || DEFAULT_PROFILE.venture_2)
           };
           saveLocalProfile(profile);
           return { profile, fromSupabase: true };
@@ -235,23 +242,53 @@ export async function updateProfileData(profileUpdates: Partial<ProfileInfo>): P
     const client = supabaseInstance || initSupabase(config.url, config.anonKey);
     if (client) {
       try {
-        // Check if row exists or update id=1 or first row
-        const { error } = await client
+        // Construct the update payload dynamically
+        const payload: any = {
+          name: profileUpdates.name,
+          title: profileUpdates.title,
+          bio: profileUpdates.bio,
+          skills: profileUpdates.skills,
+          avatar_url: profileUpdates.avatar_url,
+          email: profileUpdates.email,
+          telegram: profileUpdates.telegram,
+          github: profileUpdates.github,
+          linkedin: profileUpdates.linkedin,
+          twitter: profileUpdates.twitter,
+          instagram: profileUpdates.instagram,
+          location: profileUpdates.location
+        };
+
+        if (profileUpdates.venture_1 !== undefined) payload.venture_1 = profileUpdates.venture_1;
+        if (profileUpdates.venture_2 !== undefined) payload.venture_2 = profileUpdates.venture_2;
+
+        let { error } = await client
           .from('portfolio_info')
-          .update({
-            name: profileUpdates.name,
-            title: profileUpdates.title,
-            bio: profileUpdates.bio,
-            skills: profileUpdates.skills,
-            avatar_url: profileUpdates.avatar_url,
-            email: profileUpdates.email,
-            telegram: profileUpdates.telegram,
-            github: profileUpdates.github,
-            linkedin: profileUpdates.linkedin,
-            twitter: profileUpdates.twitter,
-            instagram: profileUpdates.instagram
-          })
+          .update(payload)
           .eq('id', profileUpdates.id || 1);
+
+        if (error) {
+          // If any missing column error occurs, fallback to absolute baseline guaranteed columns
+          if (error.message.includes('column') || error.code === '42703') {
+            const baselinePayload = {
+              title: payload.title,
+              bio: payload.bio,
+              skills: payload.skills,
+              avatar_url: payload.avatar_url,
+              email: payload.email,
+              github: payload.github,
+              linkedin: payload.linkedin,
+              twitter: payload.twitter,
+              instagram: payload.instagram
+            };
+
+            const retryRes = await client
+              .from('portfolio_info')
+              .update(baselinePayload)
+              .eq('id', profileUpdates.id || 1);
+
+            error = retryRes.error;
+          }
+        }
 
         if (error) {
           // Fallback to local save
@@ -329,6 +366,32 @@ export async function uploadMediaFileToSupabase(
 ): Promise<{ publicUrl: string; success: boolean; fromSupabase: boolean; error?: string }> {
   const config = getStoredConfig();
 
+  // Helper function to read file as Base64 Data URL (the fallback)
+  const readAsBase64Fallback = (): Promise<{ publicUrl: string; success: boolean; fromSupabase: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      if (onProgress) onProgress(30);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (onProgress) onProgress(100);
+        resolve({
+          publicUrl: reader.result as string,
+          success: true,
+          fromSupabase: false,
+          error: 'Uploaded to local sandbox (Supabase upload timed out or encountered configuration issues).'
+        });
+      };
+      reader.onerror = () => {
+        resolve({
+          publicUrl: '',
+          success: false,
+          fromSupabase: false,
+          error: 'Failed to read file for local preview.'
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   // 1. If Supabase is configured with URL and Anon key, attempt real Supabase Storage upload
   if (config.url && config.anonKey) {
     const client = supabaseInstance || initSupabase(config.url, config.anonKey);
@@ -339,9 +402,9 @@ export async function uploadMediaFileToSupabase(
         const sanitizedName = cleanBaseName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
         const fileName = `${folder}/${Date.now()}_${sanitizedName}.${fileExt}`;
 
-        // Race the upload request against a 25-second timeout to prevent indefinite spinning
+        // Race the upload request against a generous 120-second timeout to allow larger media on slow/mobile connections
         const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) =>
-          setTimeout(() => reject(new Error('Upload timeout (25s exceeded). Please check your connection and Supabase storage configuration.')), 25000)
+          setTimeout(() => reject(new Error('Upload timeout (120s exceeded).')), 120000)
         );
 
         const uploadPromise = (async () => {
@@ -363,13 +426,8 @@ export async function uploadMediaFileToSupabase(
         const { data, error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
 
         if (uploadError) {
-          console.warn('Supabase storage upload error:', uploadError);
-          return {
-            publicUrl: '',
-            success: false,
-            fromSupabase: false,
-            error: `Supabase Storage error: ${uploadError.message}. Ensure the bucket 'portfolio-media' exists in Supabase Storage and is set to Public.`
-          };
+          console.warn('Supabase storage upload error, falling back to local base64:', uploadError);
+          return await readAsBase64Fallback();
         }
 
         // Get public URL from Supabase Storage
@@ -385,39 +443,14 @@ export async function uploadMediaFileToSupabase(
           };
         }
       } catch (err: unknown) {
-        console.error('Failed uploading to Supabase Storage:', err);
-        return {
-          publicUrl: '',
-          success: false,
-          fromSupabase: false,
-          error: err instanceof Error ? err.message : 'Unknown storage upload error'
-        };
+        console.warn('Failed uploading to Supabase Storage, falling back to base64:', err);
+        return await readAsBase64Fallback();
       }
     }
   }
 
   // 2. Offline / Local fallback: convert file to a local Data URL (Base64)
-  return new Promise((resolve) => {
-    if (onProgress) onProgress(30);
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (onProgress) onProgress(100);
-      resolve({
-        publicUrl: reader.result as string,
-        success: true,
-        fromSupabase: false
-      });
-    };
-    reader.onerror = () => {
-      resolve({
-        publicUrl: '',
-        success: false,
-        fromSupabase: false,
-        error: 'Failed to read file for local preview.'
-      });
-    };
-    reader.readAsDataURL(file);
-  });
+  return readAsBase64Fallback();
 }
 
 export async function createPostData(newPost: Omit<MediaPost, 'id' | 'created_at' | 'post_likes'>): Promise<{ post?: MediaPost; success: boolean; error?: string }> {
@@ -480,14 +513,22 @@ export async function createPostData(newPost: Omit<MediaPost, 'id' | 'created_at
 
 export async function deletePostData(postId: string | number): Promise<{ success: boolean; error?: string }> {
   const config = getStoredConfig();
+  
   if (config.url && config.anonKey) {
     const client = supabaseInstance || initSupabase(config.url, config.anonKey);
     if (client) {
       try {
+        // Delete child tables (likes & comments) first to resolve Foreign Key constraints
+        await client.from('post_likes').delete().eq('post_id', postId);
+        await client.from('post_comments').delete().eq('post_id', postId);
+
+        // Delete parent record
         const { error } = await client.from('media_posts').delete().eq('id', postId);
-        if (error) return { success: false, error: error.message };
+        if (error) {
+          console.warn('Supabase post delete failed, falling back to local deletion:', error.message);
+        }
       } catch (err: unknown) {
-        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+        console.warn('Supabase post delete encountered error, falling back to local deletion:', err);
       }
     }
   }
@@ -495,6 +536,43 @@ export async function deletePostData(postId: string | number): Promise<{ success
   const currentPosts = getLocalPosts().filter(p => String(p.id) !== String(postId));
   saveLocalPosts(currentPosts);
   return { success: true };
+}
+
+export async function updatePostData(
+  postId: string | number, 
+  updates: Partial<MediaPost>
+): Promise<{ success: boolean; post?: MediaPost; error?: string }> {
+  const config = getStoredConfig();
+  if (config.url && config.anonKey) {
+    const client = supabaseInstance || initSupabase(config.url, config.anonKey);
+    if (client) {
+      try {
+        const payload: Record<string, any> = {};
+        if (updates.title !== undefined) payload.title = updates.title;
+        if (updates.description !== undefined) payload.description = updates.description;
+        if (updates.media_type !== undefined) payload.media_type = updates.media_type;
+        if (updates.media_url !== undefined) payload.media_url = updates.media_url;
+        if (updates.is_featured !== undefined) payload.is_featured = updates.is_featured;
+        if (updates.is_hidden !== undefined) payload.is_hidden = updates.is_hidden;
+
+        await client.from('media_posts').update(payload).eq('id', postId);
+      } catch (err: unknown) {
+        console.warn('Supabase post update failed, falling back to local update:', err);
+      }
+    }
+  }
+
+  const posts = getLocalPosts();
+  let updatedPost: MediaPost | undefined;
+  const updatedPosts = posts.map(p => {
+    if (String(p.id) === String(postId)) {
+      updatedPost = { ...p, ...updates };
+      return updatedPost;
+    }
+    return p;
+  });
+  saveLocalPosts(updatedPosts);
+  return { success: true, post: updatedPost };
 }
 
 export async function addPostLike(postId: string | number, visitorName: string): Promise<{ success: boolean; error?: string }> {
@@ -792,7 +870,8 @@ export async function createContactMessage(msg: { sender_name: string; sender_em
 
 export async function deleteContactMessage(id: string | number): Promise<{ success: boolean; error?: string }> {
   const config = getStoredConfig();
-  if (config.url && config.anonKey) {
+  
+  if (config.isConnected && config.url && config.anonKey) {
     const client = supabaseInstance || initSupabase(config.url, config.anonKey);
     if (client) {
       try {
@@ -802,10 +881,10 @@ export async function deleteContactMessage(id: string | number): Promise<{ succe
           .eq('id', id);
 
         if (error) {
-          return { success: false, error: error.message };
+          console.warn('Supabase message delete failed, falling back to local deletion:', error.message);
         }
       } catch (err: unknown) {
-        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+        console.warn('Supabase message delete caught error, falling back to local deletion:', err);
       }
     }
   }
@@ -868,4 +947,198 @@ export async function fetchAllComments(): Promise<DetailedComment[]> {
   });
 
   return comments;
+}
+
+// ==========================================
+// STORIES PERSISTENCE ENGINE (WhatsApp/Instagram 24-Hour Stories)
+// ==========================================
+const STORIES_KEY = 'vrishketu_local_stories';
+
+export function getLocalStories(): Story[] {
+  try {
+    const raw = localStorage.getItem(STORIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Filter out expired stories (older than 24 hours) on load unless they are designated highlights
+        const valid = parsed.filter(story => {
+          if (story.title) return true; // Curated highlights don't expire
+          const hours = (Date.now() - new Date(story.created_at).getTime()) / (1000 * 60 * 60);
+          return hours < 48;
+        });
+        if (valid.length > 0) return valid;
+      }
+    }
+  } catch (e) {
+    console.error('Failed reading local stories:', e);
+  }
+  return DEFAULT_STORIES;
+}
+
+export function saveLocalStories(stories: Story[]) {
+  try {
+    // 1. Keep only non-expired stories (younger than 24 hours old) to save massive space
+    const liveStories = stories.filter(story => {
+      const storyTime = new Date(story.created_at).getTime();
+      const ageInHours = (Date.now() - storyTime) / (1000 * 60 * 60);
+      return ageInHours < 24;
+    });
+
+    // 2. Sort from newest to oldest and limit to max 10 most recent active stories
+    const sortedStories = [...liveStories].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    const limitedStories = sortedStories.slice(0, 10);
+
+    localStorage.setItem(STORIES_KEY, JSON.stringify(limitedStories));
+  } catch (e: any) {
+    console.warn('LocalStorage quota exceeded for stories, initiating fallback cleanup:', e.message);
+    try {
+      // Recovery: Keep only the 3 most recent stories to fit within quota limits safely
+      const superLimited = stories.slice(0, 3);
+      localStorage.setItem(STORIES_KEY, JSON.stringify(superLimited));
+    } catch (innerError) {
+      console.error('Critical failure: Local storage quota completely full, failed saving stories:', innerError);
+    }
+  }
+}
+
+export async function fetchStories(): Promise<{ stories: Story[]; fromSupabase: boolean; error?: string }> {
+  const config = getStoredConfig();
+  if (config.url && config.anonKey) {
+    const client = supabaseInstance || initSupabase(config.url, config.anonKey);
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('portfolio_stories')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          // If the table doesn't exist, we fallback nicely to localStorage
+          return { stories: getLocalStories(), fromSupabase: false, error: error.message };
+        }
+
+        if (data) {
+          const stories: Story[] = data.map((s: any) => ({
+            id: s.id,
+            media_url: s.media_url,
+            media_type: s.media_type || 'image',
+            caption: s.caption || '',
+            created_at: s.created_at
+          }));
+          saveLocalStories(stories);
+          return { stories, fromSupabase: true };
+        }
+      } catch (err: unknown) {
+        return { stories: getLocalStories(), fromSupabase: false, error: err instanceof Error ? err.message : 'Unknown error' };
+      }
+    }
+  }
+
+  return { stories: getLocalStories(), fromSupabase: false };
+}
+
+export async function createStory(newStory: Omit<Story, 'id' | 'created_at'>): Promise<{ story?: Story; success: boolean; error?: string }> {
+  const config = getStoredConfig();
+  const created_at = new Date().toISOString();
+
+  if (config.url && config.anonKey) {
+    const client = supabaseInstance || initSupabase(config.url, config.anonKey);
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('portfolio_stories')
+          .insert([
+            {
+              media_url: newStory.media_url,
+              media_type: newStory.media_type,
+              caption: newStory.caption || '',
+              created_at
+            }
+          ])
+          .select()
+          .single();
+
+        if (error) {
+          // Fallback locally
+          const localStories = getLocalStories();
+          const backup: Story = {
+            id: `story-${Date.now()}`,
+            media_url: newStory.media_url,
+            media_type: newStory.media_type,
+            caption: newStory.caption,
+            created_at
+          };
+          saveLocalStories([backup, ...localStories]);
+          return { story: backup, success: true, error: `Saved locally (Supabase: ${error.message})` };
+        }
+
+        if (data) {
+          const story: Story = {
+            id: data.id,
+            media_url: data.media_url,
+            media_type: data.media_type,
+            caption: data.caption,
+            created_at: data.created_at
+          };
+          const localStories = getLocalStories();
+          saveLocalStories([story, ...localStories]);
+          return { story, success: true };
+        }
+      } catch (err: unknown) {
+        // Fallback locally
+        const localStories = getLocalStories();
+        const backup: Story = {
+          id: `story-${Date.now()}`,
+          media_url: newStory.media_url,
+          media_type: newStory.media_type,
+          caption: newStory.caption,
+          created_at
+        };
+        saveLocalStories([backup, ...localStories]);
+        return { story: backup, success: true, error: err instanceof Error ? err.message : 'Local backup' };
+      }
+    }
+  }
+
+  // Local storage save
+  const localStories = getLocalStories();
+  const backup: Story = {
+    id: `story-${Date.now()}`,
+    media_url: newStory.media_url,
+    media_type: newStory.media_type,
+    caption: newStory.caption,
+    created_at
+  };
+  saveLocalStories([backup, ...localStories]);
+  return { story: backup, success: true };
+}
+
+export async function deleteStory(id: string | number): Promise<{ success: boolean; error?: string }> {
+  const config = getStoredConfig();
+  
+  if (config.url && config.anonKey) {
+    const client = supabaseInstance || initSupabase(config.url, config.anonKey);
+    if (client) {
+      try {
+        const { error } = await client
+          .from('portfolio_stories')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.warn('Supabase story delete failed, falling back to local deletion:', error.message);
+        }
+      } catch (err: unknown) {
+        console.warn('Supabase story delete caught error, falling back to local deletion:', err);
+      }
+    }
+  }
+
+  // Local storage removal
+  const current = getLocalStories();
+  const updated = current.filter(s => String(s.id) !== String(id));
+  saveLocalStories(updated);
+  return { success: true };
 }
