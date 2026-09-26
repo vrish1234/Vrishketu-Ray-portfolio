@@ -98,6 +98,14 @@ export default function App() {
   const [isSyncingGitHub, setIsSyncingGitHub] = useState(false);
   const [isSyncingSocial, setIsSyncingSocial] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [syncToast, setSyncToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setSyncToast({ message, type });
+    setTimeout(() => {
+      setSyncToast(null);
+    }, 4500);
+  };
 
   // Load initial data
   const loadData = async () => {
@@ -254,10 +262,22 @@ export default function App() {
       const res = await fetchLiveGitHubRepos(targetUsername);
       if (res.repos && res.repos.length > 0) {
         setGithubRepos(res.repos);
+        showToast(
+          language === 'hi' 
+            ? `@${res.actualUsername || targetUsername} से ${res.repos.length} रिपॉजिटरीज़ सिंक हो गईं!` 
+            : `Synced ${res.repos.length} repositories from @${res.actualUsername || targetUsername}!`,
+          'success'
+        );
+      } else {
+        showToast(
+          language === 'hi' ? 'गिटहब से 0 रिपॉजिटरीज़ मिलीं।' : 'Found 0 repositories on GitHub.',
+          'info'
+        );
       }
       setSocialConfig(getSocialSyncConfig());
-    } catch (e) {
+    } catch (e: any) {
       console.error('GitHub sync error:', e);
+      showToast(language === 'hi' ? 'गिटहब सिंक में त्रुटि हुई।' : 'Error syncing GitHub.', 'error');
     } finally {
       setIsSyncingGitHub(false);
     }
@@ -267,13 +287,21 @@ export default function App() {
   const handleSyncAllSocial = async () => {
     setIsSyncingSocial(true);
     try {
-      await syncAllPlatforms(socialConfig);
+      const result = await syncAllPlatforms(socialConfig);
       setGithubRepos(getStoredGitHubRepos());
       setInstagramItems(getStoredInstagramItems());
       setLinkedInPosts(getStoredLinkedInPosts());
       setSocialConfig(getSocialSyncConfig());
+      
+      showToast(
+        language === 'hi'
+          ? `✓ सिंक पूर्ण: ${result.githubCount} गिटहब कोड, ${result.instagramCount} इंस्टाग्राम पोस्ट, ${result.linkedinCount} लिंक्डइन अपडेट्स`
+          : `✓ Sync complete: ${result.githubCount} GitHub repos, ${result.instagramCount} Instagram media, ${result.linkedinCount} LinkedIn updates`,
+        'success'
+      );
     } catch (e) {
       console.error('Social sync error:', e);
+      showToast(language === 'hi' ? 'सिंक के दौरान समस्या आई।' : 'Sync encountered an issue.', 'error');
     } finally {
       setIsSyncingSocial(false);
     }
@@ -754,6 +782,30 @@ export default function App() {
         linkedinCount={linkedInPosts.length}
         language={language}
       />
+
+      {/* Floating Sync Toast Notification */}
+      {syncToast && (
+        <div 
+          className={`fixed bottom-6 right-6 z-50 max-w-md px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border flex items-center gap-3 animate-fade-in transition-all ${
+            syncToast.type === 'success'
+              ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200'
+              : syncToast.type === 'error'
+              ? 'bg-rose-950/90 border-rose-500/40 text-rose-200'
+              : 'bg-blue-950/90 border-blue-500/40 text-blue-200'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+          <p className="text-xs font-medium leading-snug flex-1">
+            {syncToast.message}
+          </p>
+          <button 
+            onClick={() => setSyncToast(null)}
+            className="text-gray-400 hover:text-white text-xs p-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-gray-900 bg-gray-950 py-8 px-4 mt-12 text-center text-xs text-gray-500 relative">

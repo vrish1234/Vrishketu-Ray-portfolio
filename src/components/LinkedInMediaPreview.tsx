@@ -172,9 +172,17 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({ imageUrl, altT
 
 interface FormattedPostContentProps {
   content: string;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+  language?: Language;
 }
 
-export const FormattedPostContent: React.FC<FormattedPostContentProps> = ({ content }) => {
+export const FormattedPostContent: React.FC<FormattedPostContentProps> = ({ 
+  content, 
+  isExpanded = true, 
+  onToggleExpand,
+  language = 'hi'
+}) => {
   // Regex that captures both URLs and Hashtags
   const TOKEN_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(#[a-zA-Z0-9_\u0900-\u097F]+)/g;
 
@@ -227,9 +235,33 @@ export const FormattedPostContent: React.FC<FormattedPostContentProps> = ({ cont
     parts.push(content.substring(lastIndex));
   }
 
+  const isLong = content.length > 180 || content.split('\n').length > 3;
+
   return (
-    <div className="text-xs sm:text-sm text-gray-200 leading-relaxed whitespace-pre-line space-y-2">
-      {parts.length > 0 ? parts : content}
+    <div className="space-y-1.5">
+      <div 
+        className={`text-xs sm:text-sm text-gray-200 leading-relaxed whitespace-pre-line space-y-2 transition-all duration-300 ${
+          !isExpanded ? 'line-clamp-3 overflow-hidden' : 'line-clamp-none'
+        }`}
+      >
+        {parts.length > 0 ? parts : content}
+      </div>
+
+      {isLong && onToggleExpand && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1 pt-0.5 cursor-pointer"
+        >
+          <span>
+            {isExpanded 
+              ? (language === 'hi' ? 'कम पढ़ें...' : 'View less') 
+              : (language === 'hi' ? 'पूरा विवरण पढ़ें...' : 'View more...')}
+          </span>
+        </button>
+      )}
     </div>
   );
 };

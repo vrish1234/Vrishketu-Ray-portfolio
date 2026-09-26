@@ -17,7 +17,12 @@ import {
   BookOpen,
   Image as ImageIcon,
   ArrowUpRight,
-  Filter
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Layers,
+  Tag
 } from 'lucide-react';
 import { LinkedInPost, Language } from '../types';
 import { extractPostMediaAndLinks } from '../lib/linkedinMediaParser';
@@ -49,6 +54,19 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'links' | 'media'>('all');
+  const [expandedPostIds, setExpandedPostIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandPost = (id: string) => {
+    setExpandedPostIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const handleShare = (url: string, id: string) => {
     if (navigator.clipboard) {
@@ -281,11 +299,16 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
           filteredPosts.map(post => {
             // Extract rich media and web links using regex parser
             const media = extractPostMediaAndLinks(post);
+            const isExpanded = expandedPostIds.has(post.id);
 
             return (
               <article
                 key={post.id}
-                className="bg-gray-900 border border-gray-800 hover:border-blue-500/30 rounded-3xl p-6 sm:p-7 shadow-xl space-y-4 transition-all duration-300"
+                className={`bg-gray-900 border rounded-3xl p-6 sm:p-7 shadow-xl space-y-4 transition-all duration-300 ${
+                  isExpanded
+                    ? 'border-blue-500/60 shadow-blue-500/10 ring-1 ring-blue-500/20'
+                    : 'border-gray-800 hover:border-blue-500/30'
+                }`}
               >
                 {/* Post Author Header */}
                 <div className="flex items-start justify-between gap-3">
@@ -324,8 +347,13 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
                   </a>
                 </div>
 
-                {/* Post Content with Clickable URLs and Styled Hashtags */}
-                <FormattedPostContent content={post.content} />
+                {/* Post Content with Clickable URLs, Styled Hashtags & Smooth Expand */}
+                <FormattedPostContent 
+                  content={post.content} 
+                  isExpanded={isExpanded}
+                  onToggleExpand={() => toggleExpandPost(post.id)}
+                  language={language}
+                />
 
                 {/* Rich Media Previews: Image Attachments with Lightbox */}
                 {media.imageUrls.map((imgUrl, idx) => (
@@ -345,6 +373,51 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
                     language={language}
                   />
                 ))}
+
+                {/* Expanded Post Metadata & Analytics Tray */}
+                <div 
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isExpanded ? 'max-h-60 opacity-100 pt-1' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  <div className="bg-gray-950/80 rounded-2xl p-3 sm:p-4 border border-blue-500/20 space-y-2 text-xs text-gray-300">
+                    <div className="flex items-center justify-between text-gray-400 text-[11px]">
+                      <span className="flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-blue-400" />
+                        <span className="font-semibold text-white">{language === 'hi' ? 'पूर्ण पोस्ट विवरण:' : 'Full Post Details:'}</span>
+                      </span>
+                      <span className="font-mono text-[10px] text-blue-300 uppercase px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                        {media.articleLinks.length > 0 ? 'Resource Post' : (media.imageUrls.length > 0 ? 'Media Update' : 'Text Insight')}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono pt-1.5 border-t border-gray-800">
+                      <div className="space-y-0.5">
+                        <span className="text-gray-500 block text-[10px] uppercase">{language === 'hi' ? 'प्रकाशन समय' : 'Published At'}</span>
+                        <span className="text-gray-300">{new Date(post.published_at).toLocaleString()}</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-gray-500 block text-[10px] uppercase">{language === 'hi' ? 'पोस्ट पहचानकर्ता' : 'Post Identifier'}</span>
+                        <span className="text-gray-300 truncate block">{post.id}</span>
+                      </div>
+                    </div>
+
+                    {media.articleLinks.length > 0 && (
+                      <div className="pt-1.5 border-t border-gray-800/80 text-[11px] flex items-center justify-between">
+                        <span className="text-gray-400">{language === 'hi' ? 'मुख्य रिसोर्स लिंक:' : 'Primary Linked Resource:'}</span>
+                        <a
+                          href={media.articleLinks[0].url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline flex items-center gap-1 font-mono text-[10px] truncate max-w-xs"
+                        >
+                          <span>{media.articleLinks[0].displayDomain}</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 {/* Reactions & Engagement Row */}
                 <div className="pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs">
@@ -372,10 +445,19 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleShare(post.post_url, post.id)}
-                      className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition"
+                      className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition cursor-pointer"
                       title="Share link"
                     >
                       {copiedId === post.id ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
+                    </button>
+
+                    <button
+                      onClick={() => toggleExpandPost(post.id)}
+                      className="px-2.5 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-xs font-medium transition cursor-pointer flex items-center gap-1"
+                      title={isExpanded ? 'Collapse post' : 'Expand full post details'}
+                    >
+                      <span>{isExpanded ? (language === 'hi' ? 'संक्षिप्त' : 'Less') : (language === 'hi' ? 'विवरण' : 'Details')}</span>
+                      {isExpanded ? <ChevronUp className="w-3 h-3 text-blue-400" /> : <ChevronDown className="w-3 h-3 text-blue-400" />}
                     </button>
 
                     <a
@@ -384,7 +466,7 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-semibold transition hover:scale-105 active:scale-95"
                     >
-                      <span>{language === 'hi' ? 'लिंक्डइन पर देखें' : 'View on LinkedIn'}</span>
+                      <span>{language === 'hi' ? 'लिंक्डइन' : 'LinkedIn'}</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
@@ -397,3 +479,4 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
     </div>
   );
 };
+

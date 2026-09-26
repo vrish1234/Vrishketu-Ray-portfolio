@@ -49,6 +49,15 @@ export function initSupabase(url: string, anonKey: string): SupabaseClient | nul
   }
 }
 
+export function getSupabaseClient(): SupabaseClient | null {
+  if (supabaseInstance) return supabaseInstance;
+  const config = getStoredConfig();
+  if (config.url && config.anonKey) {
+    return initSupabase(config.url, config.anonKey);
+  }
+  return null;
+}
+
 export function saveStoredConfig(url: string, anonKey: string, isConnected = false) {
   try {
     localStorage.setItem(CONFIG_KEY, JSON.stringify({ url, anonKey, isConnected }));

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { GitHubRepo, Language } from '../types';
 import { GitHubUserProfile } from '../lib/socialSync';
+import { GitHubCommitActivityChart } from './GitHubCommitActivityChart';
 
 interface GitHubFeedProps {
   repos: GitHubRepo[];
@@ -205,6 +206,15 @@ export const GitHubFeed: React.FC<GitHubFeedProps> = ({
           </div>
         </div>
       </div>
+
+      {/* D3.js Powered Commit Activity Timeline Chart */}
+      {repos.length > 0 && (
+        <GitHubCommitActivityChart
+          repos={repos}
+          username={username}
+          language={language}
+        />
+      )}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
