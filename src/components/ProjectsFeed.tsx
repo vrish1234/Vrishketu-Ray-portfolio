@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Heart, 
   Image as ImageIcon, 
@@ -15,7 +15,9 @@ import {
   Lock,
   CheckCircle2,
   ArrowRight,
-  Star
+  Star,
+  Copy,
+  Link as LinkIcon
 } from 'lucide-react';
 import { MediaPost, MediaType, Language } from '../types';
 
@@ -27,6 +29,12 @@ interface ProjectsFeedProps {
   isLoading?: boolean;
   isCompact?: boolean;
   onViewAllProjects?: () => void;
+}
+
+interface ShareToast {
+  id: string | number;
+  title: string;
+  url: string;
 }
 
 export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
@@ -65,6 +73,17 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
   const [filterType, setFilterType] = useState<'all' | MediaType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | number | null>(null);
+  const [shareToast, setShareToast] = useState<ShareToast | null>(null);
+
+  // Auto-dismiss share toast after 3.5 seconds
+  useEffect(() => {
+    if (shareToast) {
+      const timer = setTimeout(() => {
+        setShareToast(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [shareToast]);
 
   // SKELETON SCREEN PLACEHOLDER WHILE DATA IS BEING FETCHED
   if (isLoading) {
@@ -178,12 +197,49 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
     }
   };
 
-  const handleShare = (post: MediaPost) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(`${window.location.origin}#post-${post.id}`);
-      setCopiedId(post.id);
-      setTimeout(() => setCopiedId(null), 2000);
+  const handleShare = async (post: MediaPost) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+    const shareUrl = `${origin}${pathname}#post-${post.id}`;
+
+    let copiedSuccessfully = false;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        copiedSuccessfully = true;
+      } catch {
+        // fallback below
+      }
     }
+
+    if (!copiedSuccessfully) {
+      try {
+        const tempTextArea = document.createElement('textarea');
+        tempTextArea.value = shareUrl;
+        tempTextArea.style.position = 'fixed';
+        tempTextArea.style.left = '-9999px';
+        document.body.appendChild(tempTextArea);
+        tempTextArea.focus();
+        tempTextArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempTextArea);
+        copiedSuccessfully = true;
+      } catch {
+        // ignore
+      }
+    }
+
+    setCopiedId(post.id);
+    setShareToast({
+      id: post.id,
+      title: post.title,
+      url: shareUrl
+    });
+
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 2500);
   };
 
   // Filter out posts hidden by admin
@@ -502,19 +558,26 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                       </button>
                     </div>
 
-                    {/* Share Button */}
+                    {/* Quick Share Button */}
                     <button
                       onClick={() => handleShare(post)}
-                      className="p-2 rounded-lg bg-gray-800/60 hover:bg-gray-800 border border-gray-700/60 text-gray-400 hover:text-white transition text-xs flex items-center gap-1"
-                      title="Share link"
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border shadow-sm active:scale-95 cursor-pointer ${
+                        copiedId === post.id
+                          ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 ring-1 ring-emerald-500/30'
+                          : 'bg-gray-800 hover:bg-gray-700 hover:border-blue-500/40 text-gray-300 hover:text-white border-gray-700'
+                      }`}
+                      title={language === 'hi' ? 'क्विक शेयर: डायरेक्ट लिंक कॉपी करें' : 'Quick Share: Copy direct link to clipboard'}
                     >
                       {copiedId === post.id ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-[11px] text-emerald-400 font-medium">Copied</span>
+                          <span className="text-emerald-300 font-bold">{language === 'hi' ? 'कॉपी हुआ!' : 'Copied!'}</span>
                         </>
                       ) : (
-                        <Share2 className="w-3.5 h-3.5" />
+                        <>
+                          <Share2 className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{language === 'hi' ? 'क्विक शेयर' : 'Quick Share'}</span>
+                        </>
                       )}
                     </button>
                   </div>
@@ -763,6 +826,45 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
               </form>
             )}
           </div>
+        </div>
+      )}
+      {/* Floating Quick Share Success Toast Notification */}
+      {shareToast && (
+        <div 
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-gray-900/95 backdrop-blur-xl border border-emerald-500/50 rounded-2xl p-4 shadow-2xl shadow-emerald-500/10 animate-fade-in flex items-start justify-between gap-3 text-white ring-1 ring-emerald-500/20"
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-xs font-bold text-white tracking-tight font-heading">
+                  {language === 'hi' ? 'डायरेक्ट लिंक कॉपी हो गया!' : 'Direct Link Copied!'}
+                </h4>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-semibold">
+                  CLIPBOARD
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-300 font-medium truncate">
+                {shareToast.title}
+              </p>
+              <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono bg-gray-950/80 px-2 py-1 rounded-lg border border-gray-800">
+                <LinkIcon className="w-2.5 h-2.5 text-blue-400 shrink-0" />
+                <span className="truncate">{shareToast.url}</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShareToast(null)}
+            className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition shrink-0 cursor-pointer"
+            title="Dismiss notification"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </section>

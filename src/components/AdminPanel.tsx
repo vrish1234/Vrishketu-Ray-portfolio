@@ -483,12 +483,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         });
       }
     } catch (err: unknown) {
-      setIsAddingPost(false);
-      setUploadStatusText(null);
       setPostFeedback({
         type: 'error',
         message: err instanceof Error ? err.message : 'Unexpected upload error'
       });
+    } finally {
+      setIsAddingPost(false);
+      setUploadStatusText(null);
+      setPostUploadProgress(0);
     }
   };
 

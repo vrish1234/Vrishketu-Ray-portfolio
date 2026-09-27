@@ -16,6 +16,10 @@ export interface SupabaseConfigState {
 let supabaseInstance: SupabaseClient | null = null;
 
 export function getStoredConfig(): SupabaseConfigState {
+  // 1. Check environment variables (Vite / Next.js / Vercel conventions)
+  const envUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || (import.meta as any)?.env?.NEXT_PUBLIC_SUPABASE_URL || '';
+  const envKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || (import.meta as any)?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
     if (raw) {
@@ -24,13 +28,23 @@ export function getStoredConfig(): SupabaseConfigState {
         return {
           url: parsed.url,
           anonKey: parsed.anonKey,
-          isConnected: parsed.isConnected ?? false
+          isConnected: parsed.isConnected ?? true
         };
       }
     }
   } catch (e) {
     console.error('Error reading stored Supabase config:', e);
   }
+
+  // Fallback to environment variables if present
+  if (envUrl && envKey) {
+    return {
+      url: envUrl,
+      anonKey: envKey,
+      isConnected: true
+    };
+  }
+
   return { url: '', anonKey: '', isConnected: false };
 }
 
@@ -365,20 +379,45 @@ export async function fetchPostsData(): Promise<{ posts: MediaPost[]; fromSupaba
 
 /**
  * Uploads a file directly to the Supabase Storage bucket 'portfolio-media'.
- * If Supabase is not connected, falls back to converting to a base64 Data URL
- * so that offline/local demo previews function seamlessly.
+ * Features:
+ * - Pre-flight size and type validation
+ * - 25-second strict timeout race to eliminate infinite loading spinners
+ * - Graceful fallback to local base64 preview when bucket is missing or RLS is blocked
+ * - Smooth simulated progress updates
  */
 export async function uploadMediaFileToSupabase(
   file: File,
   folder: string = 'portfolio-media',
   onProgress?: (progressPercent: number) => void
 ): Promise<{ publicUrl: string; success: boolean; fromSupabase: boolean; error?: string }> {
+  // 1. Pre-flight client validations
+  if (!file) {
+    return {
+      publicUrl: '',
+      success: false,
+      fromSupabase: false,
+      error: 'No file provided for upload.'
+    };
+  }
+
+  // Max size limit: 30MB
+  const MAX_FILE_SIZE = 30 * 1024 * 1024;
+  if (file.size > MAX_FILE_SIZE) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    return {
+      publicUrl: '',
+      success: false,
+      fromSupabase: false,
+      error: `File size (${sizeMb}MB) exceeds the maximum allowed 30MB limit.`
+    };
+  }
+
   const config = getStoredConfig();
 
-  // Helper function to read file as Base64 Data URL (the fallback)
-  const readAsBase64Fallback = (): Promise<{ publicUrl: string; success: boolean; fromSupabase: boolean; error?: string }> => {
+  // Helper function to read file as Base64 Data URL (safe offline / RLS fallback)
+  const readAsBase64Fallback = (fallbackReason?: string): Promise<{ publicUrl: string; success: boolean; fromSupabase: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (onProgress) onProgress(30);
+      if (onProgress) onProgress(40);
       const reader = new FileReader();
       reader.onload = () => {
         if (onProgress) onProgress(100);
@@ -386,58 +425,80 @@ export async function uploadMediaFileToSupabase(
           publicUrl: reader.result as string,
           success: true,
           fromSupabase: false,
-          error: 'Uploaded to local sandbox (Supabase upload timed out or encountered configuration issues).'
+          error: fallbackReason || 'Uploaded to local sandbox (Supabase upload timed out or RLS prevented cloud storage).'
         });
       };
       reader.onerror = () => {
+        if (onProgress) onProgress(0);
         resolve({
           publicUrl: '',
           success: false,
           fromSupabase: false,
-          error: 'Failed to read file for local preview.'
+          error: 'Failed to process file for local sandbox preview.'
         });
       };
       reader.readAsDataURL(file);
     });
   };
 
-  // 1. If Supabase is configured with URL and Anon key, attempt real Supabase Storage upload
+  // 2. Real Supabase Storage Upload if configured
   if (config.url && config.anonKey) {
     const client = supabaseInstance || initSupabase(config.url, config.anonKey);
     if (client) {
+      let progressTimer: any = null;
+      let timeoutTimer: any = null;
+
       try {
-        const fileExt = file.name.split('.').pop() || 'dat';
-        const cleanBaseName = file.name.substring(0, file.name.lastIndexOf('.')) || 'file';
-        const sanitizedName = cleanBaseName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
-        const fileName = `${folder}/${Date.now()}_${sanitizedName}.${fileExt}`;
+        if (onProgress) onProgress(15);
 
-        // Race the upload request against a generous 120-second timeout to allow larger media on slow/mobile connections
-        const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) =>
-          setTimeout(() => reject(new Error('Upload timeout (120s exceeded).')), 120000)
-        );
+        // Sanitize file path
+        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const cleanBaseName = (file.name.substring(0, file.name.lastIndexOf('.')) || 'media')
+          .replace(/[^a-zA-Z0-9_-]/g, '_')
+          .substring(0, 30);
+        const fileName = `${folder}/${Date.now()}_${cleanBaseName}.${fileExt}`;
 
-        const uploadPromise = (async () => {
-          const res = await client.storage
-            .from('portfolio-media')
-            .upload(fileName, file, {
-              cacheControl: '3600',
-              upsert: false,
-              onUploadProgress: (progress: any) => {
-                if (onProgress && progress.total) {
-                  const percent = Math.round((progress.loaded / progress.total) * 100);
-                  onProgress(percent);
-                }
-              }
-            } as any);
-          return res;
-        })();
+        // Simulated progress interval for immediate user feedback
+        let currentProg = 15;
+        progressTimer = setInterval(() => {
+          if (currentProg < 85) {
+            currentProg += 15;
+            if (onProgress) onProgress(currentProg);
+          }
+        }, 300);
+
+        // Strict 25-second timeout promise
+        const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) => {
+          timeoutTimer = setTimeout(() => {
+            reject(new Error('Supabase Storage upload timed out after 25 seconds.'));
+          }, 25000);
+        });
+
+        // Supabase upload promise
+        const uploadPromise = client.storage
+          .from('portfolio-media')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
 
         const { data, error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
 
+        clearInterval(progressTimer);
+        clearTimeout(timeoutTimer);
+
         if (uploadError) {
-          console.warn('Supabase storage upload error, falling back to local base64:', uploadError);
-          return await readAsBase64Fallback();
+          console.warn('[Supabase Storage] Upload error, engaging resilient fallback:', uploadError.message);
+          let reason = `Supabase upload error: ${uploadError.message}`;
+          if (uploadError.message?.includes('Bucket not found')) {
+            reason = `Bucket 'portfolio-media' not found in your Supabase project. Saved to local sandbox.`;
+          } else if (uploadError.message?.includes('row-level security') || (uploadError as any)?.statusCode === 403) {
+            reason = `Storage RLS blocked upload to 'portfolio-media'. Saved to local sandbox.`;
+          }
+          return await readAsBase64Fallback(reason);
         }
+
+        if (onProgress) onProgress(90);
 
         // Get public URL from Supabase Storage
         const { data: urlData } = client.storage
@@ -445,6 +506,7 @@ export async function uploadMediaFileToSupabase(
           .getPublicUrl(fileName);
 
         if (urlData?.publicUrl) {
+          if (onProgress) onProgress(100);
           return {
             publicUrl: urlData.publicUrl,
             success: true,
@@ -452,13 +514,16 @@ export async function uploadMediaFileToSupabase(
           };
         }
       } catch (err: unknown) {
-        console.warn('Failed uploading to Supabase Storage, falling back to base64:', err);
-        return await readAsBase64Fallback();
+        clearInterval(progressTimer);
+        clearTimeout(timeoutTimer);
+        const errMsg = err instanceof Error ? err.message : 'Network error';
+        console.warn('[Supabase Storage] Encountered exception, fallback to base64:', errMsg);
+        return await readAsBase64Fallback(errMsg);
       }
     }
   }
 
-  // 2. Offline / Local fallback: convert file to a local Data URL (Base64)
+  // 3. Offline / Local fallback: convert file to a local Data URL (Base64)
   return readAsBase64Fallback();
 }
 
