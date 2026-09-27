@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   FolderGit2, 
   Instagram, 
@@ -18,9 +18,14 @@ import {
   Radio,
   Send,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  Layers,
+  Upload,
+  Camera,
+  X
 } from 'lucide-react';
 import { GitHubRepo, InstagramItem, LinkedInPost, SocialSyncConfig, Language } from '../types';
+import { extractInstagramShortcode } from '../lib/socialSync';
 
 interface AdminSocialSyncProps {
   socialConfig: SocialSyncConfig;
@@ -64,12 +69,36 @@ export const AdminSocialSync: React.FC<AdminSocialSyncProps> = ({
 
   // Instagram Form
   const [instagramUser, setInstagramUser] = useState(socialConfig.instagram_username || 'thevrishbihari');
-  const [newIgType, setNewIgType] = useState<'REEL' | 'IMAGE'>('REEL');
+  const [newIgType, setNewIgType] = useState<'REEL' | 'IMAGE'>('IMAGE');
   const [newIgMediaUrl, setNewIgMediaUrl] = useState('');
   const [newIgThumbUrl, setNewIgThumbUrl] = useState('');
   const [newIgPermalink, setNewIgPermalink] = useState('');
   const [newIgCaption, setNewIgCaption] = useState('');
+  const [newIgAlbumPhotos, setNewIgAlbumPhotos] = useState<string[]>([]);
+  const igFileRef = useRef<HTMLInputElement>(null);
   const [isAddingIg, setIsAddingIg] = useState(false);
+
+  const handleAdminFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        if (result) {
+          setNewIgAlbumPhotos(prev => [...prev, result]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    if (igFileRef.current) {
+      igFileRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAlbumPhoto = (idx: number) => {
+    setNewIgAlbumPhotos(prev => prev.filter((_, i) => i !== idx));
+  };
 
   // LinkedIn Form
   const [linkedinUrl, setLinkedinUrl] = useState(socialConfig.linkedin_profile_url || 'https://linkedin.com/in/vrishketu-ray');
@@ -92,15 +121,20 @@ export const AdminSocialSync: React.FC<AdminSocialSyncProps> = ({
 
   const handleAddInstagramPost = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newIgMediaUrl.trim()) return;
+    if (!newIgMediaUrl.trim() && !newIgPermalink.trim() && newIgAlbumPhotos.length === 0) return;
 
     setIsAddingIg(true);
+    const shortcode = extractInstagramShortcode(newIgPermalink) || extractInstagramShortcode(newIgMediaUrl) || undefined;
+    const hasAlbum = newIgAlbumPhotos.length > 0;
+
     onAddInstagramItem({
-      media_type: newIgType,
+      media_type: hasAlbum ? (newIgAlbumPhotos.length > 1 ? 'CAROUSEL_ALBUM' : 'IMAGE') : (newIgType === 'REEL' ? 'REEL' : 'CAROUSEL_ALBUM'),
       is_reel: newIgType === 'REEL',
-      media_url: newIgMediaUrl.trim(),
+      media_url: hasAlbum ? newIgAlbumPhotos[0] : (newIgMediaUrl.trim() || newIgPermalink.trim()),
       thumbnail_url: newIgThumbUrl.trim() || undefined,
-      permalink: newIgPermalink.trim() || `https://instagram.com/${instagramUser}`,
+      album_images: hasAlbum ? newIgAlbumPhotos : undefined,
+      shortcode,
+      permalink: newIgPermalink.trim() || (shortcode ? `https://instagram.com/p/${shortcode}/` : `https://instagram.com/${instagramUser}`),
       caption: newIgCaption.trim(),
       like_count: Math.floor(Math.random() * 200) + 150,
       comments_count: Math.floor(Math.random() * 30) + 10
@@ -110,6 +144,7 @@ export const AdminSocialSync: React.FC<AdminSocialSyncProps> = ({
     setNewIgThumbUrl('');
     setNewIgCaption('');
     setNewIgPermalink('');
+    setNewIgAlbumPhotos([]);
     setIsAddingIg(false);
   };
 
@@ -355,8 +390,20 @@ export const AdminSocialSync: React.FC<AdminSocialSyncProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
+                  onClick={() => setNewIgType('IMAGE')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    newIgType === 'IMAGE'
+                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                      : 'bg-gray-950 text-gray-400 border border-gray-800'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>📸 {language === 'hi' ? 'एल्बम पिक्स / फोटो' : 'Album Pics / Photo'}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setNewIgType('REEL')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     newIgType === 'REEL'
                       ? 'bg-pink-600 text-white shadow-md shadow-pink-600/30'
                       : 'bg-gray-950 text-gray-400 border border-gray-800'
@@ -365,25 +412,64 @@ export const AdminSocialSync: React.FC<AdminSocialSyncProps> = ({
                   <Film className="w-3.5 h-3.5" />
                   <span>🎬 Reel (Video)</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setNewIgType('IMAGE')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                    newIgType === 'IMAGE'
-                      ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                      : 'bg-gray-950 text-gray-400 border border-gray-800'
-                  }`}
-                >
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  <span>📸 Photo Post</span>
-                </button>
               </div>
+
+              {/* Upload Original Photos from Device / Gallery */}
+              {newIgType === 'IMAGE' && (
+                <div className="p-3 bg-pink-950/20 rounded-2xl border border-pink-500/20 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-semibold text-pink-300">
+                    <span className="flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{language === 'hi' ? 'ओरिजिनल एल्बम तस्वीरें (Gallery Upload):' : 'Original Album Photos:'}</span>
+                    </span>
+                    {newIgAlbumPhotos.length > 0 && (
+                      <span className="text-[10px] font-mono text-emerald-400">
+                        {newIgAlbumPhotos.length} {language === 'hi' ? 'तस्वीरें चुनी गईं' : 'photos selected'}
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    ref={igFileRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleAdminFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => igFileRef.current?.click()}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-md shadow-pink-600/20 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{language === 'hi' ? '📱 गैलरी से अपनी असली तस्वीरें चुनें' : '📱 Pick Original Album Photos from Gallery'}</span>
+                  </button>
+
+                  {newIgAlbumPhotos.length > 0 && (
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-32 overflow-y-auto p-1 bg-black/40 rounded-xl">
+                      {newIgAlbumPhotos.map((photo, idx) => (
+                        <div key={`admin-thumb-${idx}`} className="relative aspect-square rounded-lg overflow-hidden border border-pink-500/30">
+                          <img src={photo} alt="" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAlbumPhoto(idx)}
+                            className="absolute top-0.5 right-0.5 p-0.5 bg-red-600 rounded-full text-white cursor-pointer"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Media URL */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-gray-300">
-                    {newIgType === 'REEL' ? 'रील वीडियो URL (MP4 / WebM):' : 'फोटो URL (Image Link):'}
+                    {newIgType === 'REEL' ? 'रील वीडियो URL (MP4 / WebM):' : 'डायरेक्ट फोटो URL (वैकल्पिक):'}
                   </label>
                   <input
                     type="url"
@@ -391,13 +477,12 @@ export const AdminSocialSync: React.FC<AdminSocialSyncProps> = ({
                     onChange={(e) => setNewIgMediaUrl(e.target.value)}
                     placeholder="https://...mp4 or image.jpg"
                     className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white text-xs outline-none focus:border-pink-500 transition"
-                    required
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-gray-300">
-                    {language === 'hi' ? 'इंस्टाग्राम पोस्ट लिंक (Permalink):' : 'Instagram Permalink:'}
+                    {language === 'hi' ? 'इंस्टाग्राम पोस्ट लिंक (Instagram Post Link):' : 'Instagram Permalink:'}
                   </label>
                   <input
                     type="url"

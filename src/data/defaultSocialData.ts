@@ -10,8 +10,8 @@ export const DEFAULT_SOCIAL_CONFIG: SocialSyncConfig = {
   linkedin_profile_url: 'https://linkedin.com/in/vrishketu-ray',
   linkedin_auto_sync: true,
   linkedin_last_synced: new Date().toISOString(),
-  hide_sample_posts: true,
-  user_only_mode: true
+  hide_sample_posts: false,
+  user_only_mode: false
 };
 
 // Real GitHub public repositories of Vrishketu Ray (@vrish1234)
@@ -178,6 +178,19 @@ export const DEFAULT_GITHUB_REPOS: GitHubRepo[] = [
   }
 ];
 
-export const DEFAULT_INSTAGRAM_ITEMS: InstagramItem[] = [];
+// Actual real post of @thevrishbihari
+export const DEFAULT_INSTAGRAM_ITEMS: InstagramItem[] = [
+  {
+    id: 'Dbq2oLthsRm',
+    caption: 'Official Instagram post update by @thevrishbihari',
+    media_type: 'IMAGE',
+    media_url: 'https://www.instagram.com/p/Dbq2oLthsRm/',
+    permalink: 'https://www.instagram.com/p/Dbq2oLthsRm/',
+    timestamp: new Date().toISOString(),
+    is_reel: false,
+    like_count: 188,
+    comments_count: 34
+  }
+];
 
 export const DEFAULT_LINKEDIN_POSTS: LinkedInPost[] = [];

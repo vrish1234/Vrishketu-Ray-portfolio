@@ -118,6 +118,8 @@ export interface InstagramItem {
   comments_count?: number;
   is_reel?: boolean;
   is_story?: boolean;
+  album_images?: string[];
+  shortcode?: string;
 }
 
 export interface LinkedInPost {

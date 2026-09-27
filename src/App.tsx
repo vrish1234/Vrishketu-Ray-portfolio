@@ -46,6 +46,7 @@ import {
   fetchLiveGitHubRepos, 
   getStoredInstagramItems, 
   addInstagramItem, 
+  updateInstagramItem,
   deleteInstagramItem, 
   getStoredLinkedInPosts, 
   addLinkedInPost, 
@@ -88,6 +89,22 @@ export default function App() {
     }
   });
   const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
+
+  // Keyboard shortcut listener (Ctrl+Shift+A or Cmd+Shift+A) for discrete instant admin access
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        if (isAdminAuthenticated) {
+          setActiveTab(prev => prev === 'admin' ? 'portfolio' : 'admin');
+        } else {
+          setIsAdminLoginModalOpen(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAdminAuthenticated]);
 
   // Social & Developer Live Sync State
   const [socialConfig, setSocialConfig] = useState<SocialSyncConfig>(() => getSocialSyncConfig());
@@ -334,11 +351,19 @@ export default function App() {
   const handleAddInstagram = (item: Omit<InstagramItem, 'id' | 'timestamp'>) => {
     addInstagramItem(item);
     setInstagramItems(getStoredInstagramItems());
+    showToast(language === 'hi' ? 'इंस्टाग्राम पोस्ट फ़ीड में जुड़ गई!' : 'Instagram post added!', 'success');
+  };
+
+  const handleUpdateInstagram = (id: string, updates: Partial<InstagramItem>) => {
+    updateInstagramItem(id, updates);
+    setInstagramItems(getStoredInstagramItems());
+    showToast(language === 'hi' ? 'एल्बम पिक्स सफलतापूर्वक अपडेट हो गईं!' : 'Album photos updated successfully!', 'success');
   };
 
   const handleDeleteInstagram = (id: string) => {
     deleteInstagramItem(id);
     setInstagramItems(getStoredInstagramItems());
+    showToast(language === 'hi' ? 'पोस्ट हटा दी गई' : 'Post removed', 'info');
   };
 
   // LinkedIn post handlers
@@ -668,6 +693,8 @@ export default function App() {
                     language={language}
                     lastSynced={socialConfig.instagram_last_synced}
                     onOpenConnectModal={() => setIsConnectModalOpen(true)}
+                    onUpdateItem={handleUpdateInstagram}
+                    onDeleteItem={handleDeleteInstagram}
                   />
                 )}
 
@@ -844,27 +871,26 @@ export default function App() {
               Personal Portfolio & Ventures
             </p>
 
-            {/* Admin Login Button wrapped in Custom Tooltip Component displaying 'Admin Access' on hover */}
-            <Tooltip content="Admin Access" position="top">
-              <button
-                id="admin-secret-lock-trigger"
-                onClick={() => {
-                  if (isAdminAuthenticated) {
-                    setActiveTab(activeTab === 'admin' ? 'portfolio' : 'admin');
-                  } else {
-                    setIsAdminLoginModalOpen(true);
-                  }
-                }}
-                aria-label="Admin Access"
-                className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800/80 border border-transparent hover:border-blue-500/40 transition-all hover:scale-110 active:scale-95 cursor-pointer"
-              >
-                {isAdminAuthenticated ? (
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Lock className="w-4 h-4 text-gray-400 hover:text-blue-400" />
-                )}
-              </button>
-            </Tooltip>
+            {/* Subtle and discreet hidden lock icon in footer */}
+            <button
+              id="admin-secret-lock-trigger"
+              onClick={() => {
+                if (isAdminAuthenticated) {
+                  setActiveTab(activeTab === 'admin' ? 'portfolio' : 'admin');
+                } else {
+                  setIsAdminLoginModalOpen(true);
+                }
+              }}
+              title=""
+              aria-label="Secure Key"
+              className="p-1 rounded text-gray-700 hover:text-gray-400 opacity-60 hover:opacity-100 transition-all cursor-pointer focus:outline-none"
+            >
+              {isAdminAuthenticated ? (
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Lock className="w-3 h-3 text-gray-600 hover:text-gray-400" />
+              )}
+            </button>
           </div>
         </div>
       </footer>

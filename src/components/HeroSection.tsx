@@ -650,6 +650,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                     alt={stories[currentStoryIndex].caption || 'Story Content'} 
                     className="max-w-full max-h-full object-contain sm:rounded-2xl"
                     draggable={false}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.onerror = null;
+                      target.src = 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80';
+                    }}
                   />
                 )}
               </div>

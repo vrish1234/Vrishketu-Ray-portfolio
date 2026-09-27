@@ -1043,7 +1043,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <div className="flex items-start gap-3.5">
                         <div className="w-14 h-14 rounded-xl bg-gray-800 border border-gray-700 shrink-0 overflow-hidden">
                           {post.media_type === 'image' && (
-                            <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+                            <img 
+                              src={post.media_url} 
+                              alt="" 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.onerror = null;
+                                target.src = 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=400&q=80';
+                              }}
+                            />
                           )}
                           {post.media_type === 'video' && (
                             <div className="w-full h-full flex items-center justify-center text-emerald-400">

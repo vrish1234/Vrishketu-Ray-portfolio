@@ -78,22 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{language === 'hi' ? 'हिंदी' : 'EN'}</span>
           </button>
 
-          {/* Admin Login Trigger (when unauthenticated) wrapped in Tooltip */}
-          {!isAdminAuthenticated && onOpenAdminLogin && (
-            <Tooltip content="Admin Access" position="bottom">
-              <button
-                onClick={onOpenAdminLogin}
-                id="btn-navbar-admin-login"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/80 hover:bg-blue-600/20 text-gray-300 hover:text-blue-300 text-xs font-medium border border-gray-700 hover:border-blue-500/40 transition-all shadow-sm hover:scale-105 active:scale-95"
-                aria-label="Admin Access"
-              >
-                <Lock className="w-3.5 h-3.5 text-blue-400" />
-                <span>Admin</span>
-              </button>
-            </Tooltip>
-          )}
-
-          {/* Authenticated Admin Controls */}
+          {/* Authenticated Admin Controls (Only visible AFTER author logs in secretly) */}
           {isAdminAuthenticated && (
             <div className="flex items-center gap-1.5 bg-gray-950 p-1 rounded-xl border border-gray-800 animate-fade-in">
               <button
@@ -107,24 +92,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 {language === 'hi' ? 'पोर्टफोलियो' : 'Portfolio'}
               </button>
-              <Tooltip content="Admin Access" position="bottom">
-                <button
-                  onClick={() => onTabChange('admin')}
-                  id="btn-admin"
-                  className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 ${
-                    activeTab === 'admin'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{language === 'hi' ? 'एडमिन पैनल' : 'Admin'}</span>
-                </button>
-              </Tooltip>
+              <button
+                onClick={() => onTabChange('admin')}
+                id="btn-admin"
+                className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 ${
+                  activeTab === 'admin'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{language === 'hi' ? 'एडमिन' : 'Admin'}</span>
+              </button>
               <button
                 onClick={onLogout}
                 className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
-                title={language === 'hi' ? 'एडमिन से लॉगआउट करें' : 'Logout Admin Session'}
+                title={language === 'hi' ? 'लॉगआउट करें' : 'Logout Admin Session'}
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>

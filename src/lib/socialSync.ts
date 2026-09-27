@@ -294,6 +294,24 @@ export async function fetchLiveGitHubProfile(username: string): Promise<GitHubUs
 
 // ======================== INSTAGRAM SYNC ========================
 
+export function extractInstagramShortcode(url: string | undefined | null): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const clean = url.trim();
+  const match = clean.match(/(?:instagram\.com\/(?:p|reel|tv|reels)\/)([\w-]+)/i);
+  if (match && match[1]) {
+    return match[1];
+  }
+  return null;
+}
+
+export function getInstagramEmbedUrl(url: string | undefined | null, shortcode?: string): string | null {
+  const code = shortcode || extractInstagramShortcode(url);
+  if (code) {
+    return `https://www.instagram.com/p/${code}/embed/`;
+  }
+  return null;
+}
+
 export function getStoredInstagramItems(): InstagramItem[] {
   const cfg = getSocialSyncConfig();
   try {
@@ -301,10 +319,17 @@ export function getStoredInstagramItems(): InstagramItem[] {
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
+        const enriched = parsed.map((item: any) => {
+          const sc = item.shortcode || extractInstagramShortcode(item.permalink) || extractInstagramShortcode(item.media_url);
+          return {
+            ...item,
+            shortcode: sc || undefined
+          };
+        });
         if (cfg.hide_sample_posts) {
-          return parsed.filter(item => !isSampleSocialItem(item.id));
+          return enriched.filter((item: InstagramItem) => !isSampleSocialItem(item.id));
         }
-        return parsed;
+        return enriched;
       }
     }
   } catch (e) {
@@ -371,7 +396,8 @@ export async function fetchLiveInstagramMedia(accessToken?: string): Promise<{
             thumbnail_url: item.thumbnail_url || item.media_url,
             permalink: item.permalink || `https://instagram.com/p/${item.id}`,
             timestamp: item.timestamp || new Date().toISOString(),
-            is_reel: item.media_type === 'VIDEO'
+            is_reel: item.media_type === 'VIDEO',
+            shortcode: extractInstagramShortcode(item.permalink) || item.id
           }));
           saveStoredInstagramItems(mapped);
           return { success: true, items: mapped, source: 'api' };
@@ -388,14 +414,33 @@ export async function fetchLiveInstagramMedia(accessToken?: string): Promise<{
 
 export function addInstagramItem(item: Omit<InstagramItem, 'id' | 'timestamp'>): InstagramItem {
   const current = getStoredInstagramItems();
+  const shortcode = item.shortcode || extractInstagramShortcode(item.permalink) || extractInstagramShortcode(item.media_url) || undefined;
+  
   const newItem: InstagramItem = {
     ...item,
     id: `ig_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    shortcode
   };
   const updated = [newItem, ...current];
   saveStoredInstagramItems(updated);
   return newItem;
+}
+
+export function updateInstagramItem(id: string, updates: Partial<InstagramItem>): InstagramItem | null {
+  const current = getStoredInstagramItems();
+  let found: InstagramItem | null = null;
+  const updated = current.map(item => {
+    if (item.id === id) {
+      found = { ...item, ...updates };
+      return found;
+    }
+    return item;
+  });
+  if (found) {
+    saveStoredInstagramItems(updated);
+  }
+  return found;
 }
 
 export function deleteInstagramItem(id: string): boolean {

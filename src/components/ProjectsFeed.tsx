@@ -20,6 +20,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import { MediaPost, MediaType, Language } from '../types';
+import { MediaRenderer } from './MediaRenderer';
 
 interface ProjectsFeedProps {
   posts: MediaPost[];
@@ -522,52 +523,12 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                   )}
 
                   {/* Media Content Box */}
-                  <div className="mt-4 overflow-hidden rounded-2xl bg-gray-950 border border-gray-800/80 shadow-inner">
-                    {post.media_type === 'image' && (
-                      <div className="relative group/media overflow-hidden">
-                        <img
-                          src={post.media_url}
-                          alt={post.title}
-                          className="rounded-2xl w-full h-52 sm:h-56 object-cover transition-transform duration-500 group-hover/media:scale-105"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.onerror = null;
-                            target.src = 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80';
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {post.media_type === 'video' && (
-                      <video
-                        src={post.media_url}
-                        controls
-                        preload="metadata"
-                        className="rounded-2xl w-full h-52 sm:h-56 object-cover bg-black"
-                      >
-                        {language === 'hi' ? 'आपका ब्राउज़र वीडियो टैग का समर्थन नहीं करता।' : 'Your browser does not support the video tag.'}
-                      </video>
-                    )}
-
-                    {post.media_type === 'audio' && (
-                      <div className="p-5 bg-gradient-to-br from-gray-900 to-gray-950 rounded-2xl space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shadow-md">
-                            <Music className="w-5 h-5 animate-pulse" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold text-purple-300">Audio Track / Tech Podcast</p>
-                            <p className="text-[11px] text-gray-400">Preview & listen below</p>
-                          </div>
-                        </div>
-                        <audio
-                          src={post.media_url}
-                          controls
-                          className="w-full h-10 accent-blue-500 rounded-xl"
-                        />
-                      </div>
-                    )}
+                  <div className="mt-4">
+                    <MediaRenderer
+                      mediaUrl={post.media_url}
+                      mediaType={post.media_type}
+                      title={post.title}
+                    />
                   </div>
                 </div>
 

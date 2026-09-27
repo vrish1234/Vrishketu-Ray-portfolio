@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   X, 
   FolderGit2, 
@@ -14,9 +14,13 @@ import {
   CheckCircle2,
   Plus,
   Film,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Layers,
+  Upload,
+  Camera
 } from 'lucide-react';
 import { SocialSyncConfig, GitHubRepo, InstagramItem, LinkedInPost, Language } from '../types';
+import { extractInstagramShortcode } from '../lib/socialSync';
 
 interface ConnectMyIdModalProps {
   isOpen: boolean;
@@ -67,9 +71,35 @@ export const ConnectMyIdModal: React.FC<ConnectMyIdModalProps> = ({
   const [quickLink, setQuickLink] = useState('');
   const [quickMediaUrl, setQuickMediaUrl] = useState('');
   const [quickCaption, setQuickCaption] = useState('');
-  const [quickType, setQuickType] = useState<'REEL' | 'IMAGE'>('REEL');
+  const [quickType, setQuickType] = useState<'REEL' | 'IMAGE'>('IMAGE');
+  const [igAlbumPhotos, setIgAlbumPhotos] = useState<string[]>([]);
+  const igFileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        if (result) {
+          setIgAlbumPhotos(prev => [...prev, result]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (igFileInputRef.current) {
+      igFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAlbumPhoto = (idx: number) => {
+    setIgAlbumPhotos(prev => prev.filter((_, i) => i !== idx));
+  };
 
   const handleSaveIds = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,22 +141,30 @@ export const ConnectMyIdModal: React.FC<ConnectMyIdModalProps> = ({
 
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quickLink.trim() && !quickMediaUrl.trim()) return;
+    if (!quickLink.trim() && !quickMediaUrl.trim() && igAlbumPhotos.length === 0) return;
 
     if (quickPlatform === 'instagram') {
+      const shortcode = extractInstagramShortcode(quickLink) || extractInstagramShortcode(quickMediaUrl) || undefined;
+      const hasAlbum = igAlbumPhotos.length > 0;
+
       onAddInstagram({
-        media_type: quickType,
+        media_type: hasAlbum ? (igAlbumPhotos.length > 1 ? 'CAROUSEL_ALBUM' : 'IMAGE') : (quickType === 'REEL' ? 'REEL' : 'CAROUSEL_ALBUM'),
         is_reel: quickType === 'REEL',
-        media_url: quickMediaUrl.trim() || quickLink.trim(),
-        permalink: quickLink.trim() || `https://instagram.com/${instagramUser || 'thevrishbihari'}`,
+        media_url: hasAlbum ? igAlbumPhotos[0] : (quickMediaUrl.trim() || quickLink.trim()),
+        album_images: hasAlbum ? igAlbumPhotos : undefined,
+        shortcode,
+        permalink: quickLink.trim() || (shortcode ? `https://instagram.com/p/${shortcode}/` : `https://instagram.com/${instagramUser || 'thevrishbihari'}`),
         caption: quickCaption.trim() || undefined,
-        like_count: Math.floor(Math.random() * 200) + 50,
-        comments_count: Math.floor(Math.random() * 25) + 5
+        like_count: Math.floor(Math.random() * 200) + 120,
+        comments_count: Math.floor(Math.random() * 25) + 8
       });
       setStatusMsg({
         type: 'success',
-        text: language === 'hi' ? 'इंस्टाग्राम पोस्ट फ़ीड में जुड़ गई!' : 'Instagram post added to feed!'
+        text: language === 'hi' 
+          ? (hasAlbum ? 'एल्बम पिक्स सफलतापूर्वक जुड़ गईं!' : 'इंस्टाग्राम पोस्ट फ़ीड में जुड़ गई!') 
+          : 'Instagram post added to feed!'
       });
+      setIgAlbumPhotos([]);
     } else {
       onAddLinkedIn({
         author_name: 'Vrishketu Ray',
@@ -384,51 +422,109 @@ export const ConnectMyIdModal: React.FC<ConnectMyIdModalProps> = ({
               </div>
 
               {quickPlatform === 'instagram' && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setQuickType('REEL')}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                      quickType === 'REEL' ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'text-gray-400'
-                    }`}
-                  >
-                    🎬 Reel (Video)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQuickType('IMAGE')}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                      quickType === 'IMAGE' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-gray-400'
-                    }`}
-                  >
-                    📸 Photo
-                  </button>
+                <div className="space-y-3 p-3 bg-pink-950/20 rounded-2xl border border-pink-500/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-pink-300">
+                      {language === 'hi' ? 'प्रारूप चुनें:' : 'Format:'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setQuickType('IMAGE')}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                          quickType === 'IMAGE' ? 'bg-pink-600 text-white shadow-sm' : 'bg-gray-800 text-gray-400'
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>{language === 'hi' ? '📸 एल्बम पिक्स (Album)' : '📸 Album Pics'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQuickType('REEL')}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                          quickType === 'REEL' ? 'bg-pink-600 text-white shadow-sm' : 'bg-gray-800 text-gray-400'
+                        }`}
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>🎬 Reel (Video)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pick Original Photos from Device / Gallery */}
+                  <div className="space-y-2 pt-1 border-t border-pink-500/20">
+                    <input
+                      ref={igFileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => igFileInputRef.current?.click()}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-md shadow-pink-600/20 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{language === 'hi' ? '📱 गैलरी से अपनी असली तस्वीरें चुनें (Album Photos)' : '📱 Pick Original Album Photos from Gallery'}</span>
+                    </button>
+
+                    {igAlbumPhotos.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-[11px] text-pink-300 font-mono">
+                          <span>{language === 'hi' ? `चुनी गईं तस्वीरें (${igAlbumPhotos.length}):` : `Selected Photos (${igAlbumPhotos.length}):`}</span>
+                          <button
+                            type="button"
+                            onClick={() => setIgAlbumPhotos([])}
+                            className="text-gray-400 hover:text-red-400 text-[10px]"
+                          >
+                            {language === 'hi' ? 'सभी हटाएं' : 'Clear all'}
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto p-1 bg-black/40 rounded-xl">
+                          {igAlbumPhotos.map((photo, idx) => (
+                            <div key={`modal-thumb-${idx}`} className="relative aspect-square rounded-lg overflow-hidden border border-pink-500/30">
+                              <img src={photo} alt="" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAlbumPhoto(idx)}
+                                className="absolute top-0.5 right-0.5 p-0.5 bg-red-600 rounded-full text-white cursor-pointer"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-300">
-                  {quickPlatform === 'instagram' ? 'इंस्टाग्राम पोस्ट/रील लिंक (Post Link):' : 'लिंक्डइन पोस्ट लिंक (Post URL):'}
+                  {quickPlatform === 'instagram' ? 'इंस्टाग्राम पोस्ट/रील लिंक (Instagram Post Link):' : 'लिंक्डइन पोस्ट लिंक (Post URL):'}
                 </label>
                 <input
                   type="url"
                   value={quickLink}
                   onChange={(e) => setQuickLink(e.target.value)}
-                  placeholder={quickPlatform === 'instagram' ? 'https://instagram.com/reel/...' : 'https://linkedin.com/posts/...'}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
+                  placeholder={quickPlatform === 'instagram' ? 'https://instagram.com/p/... or /reel/...' : 'https://linkedin.com/posts/...'}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-pink-500"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-300">
-                  {quickPlatform === 'instagram' ? 'मीडिया URL (Video MP4 या Photo लिंक):' : 'इमेज URL (वैकल्पिक):'}
+                  {quickPlatform === 'instagram' ? 'डायरेक्ट मीडिया URL (वैकल्पिक):' : 'इमेज URL (वैकल्पिक):'}
                 </label>
                 <input
                   type="url"
                   value={quickMediaUrl}
                   onChange={(e) => setQuickMediaUrl(e.target.value)}
                   placeholder="https://...image.jpg or video.mp4"
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-pink-500"
                 />
               </div>
 
