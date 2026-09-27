@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, HardDrive, Languages, LogOut, ShieldCheck, Lock, Sparkles } from 'lucide-react';
+import { Languages, LogOut, ShieldCheck, Lock, Sparkles } from 'lucide-react';
 import { Language } from '../types';
 import { Tooltip } from './Tooltip';
 
@@ -19,8 +19,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
-  isSupabaseConnected,
-  onOpenSupabaseModal,
+  isSupabaseConnected: _isSupabaseConnected,
+  onOpenSupabaseModal: _onOpenSupabaseModal,
   language,
   onToggleLanguage,
   isAdminAuthenticated,
@@ -56,38 +56,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Storage / Supabase Status Badge (Admin only) */}
-          {isAdminAuthenticated && (
-            <button
-              onClick={onOpenSupabaseModal}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                isSupabaseConnected
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
-              }`}
-              title="Database Connection Settings"
-            >
-              {isSupabaseConnected ? (
-                <>
-                  <Database className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                  <span className="hidden md:inline">Supabase Live</span>
-                  <span className="md:hidden">Supabase</span>
-                </>
-              ) : (
-                <>
-                  <HardDrive className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden md:inline">Local Storage (Click to sync Supabase)</span>
-                  <span className="md:hidden">Local DB</span>
-                </>
-              )}
-            </button>
-          )}
-
           {/* Connect My ID quick button */}
           {onOpenConnectModal && (
             <button
               onClick={onOpenConnectModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-sm transition hover:scale-105 active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-sm transition hover:scale-105 active:scale-95"
               title={language === 'hi' ? 'मेरी असली सोशल व गिटहब ID जोड़ें' : 'Connect My Real IDs & Content'}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />

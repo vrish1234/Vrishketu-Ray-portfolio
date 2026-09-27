@@ -368,48 +368,48 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
 
             {/* Filter Pills */}
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1 text-xs">
+              <div className="flex bg-gray-950/80 border border-gray-800 rounded-2xl p-1.5 text-xs shadow-inner backdrop-blur-md">
                 <button
                   onClick={() => setFilterType('all')}
-                  className={`px-3 py-1.5 rounded-lg transition font-medium ${
+                  className={`px-3.5 py-1.5 rounded-xl transition-all duration-200 font-semibold ${
                     filterType === 'all'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-102'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-850'
                   }`}
                 >
                   {language === 'hi' ? 'सभी' : 'All'}
                 </button>
                 <button
                   onClick={() => setFilterType('image')}
-                  className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
+                  className={`px-3.5 py-1.5 rounded-xl transition-all duration-200 font-semibold flex items-center gap-1.5 ${
                     filterType === 'image'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-102'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-850'
                   }`}
                 >
-                  <ImageIcon className="w-3 h-3" />
+                  <ImageIcon className="w-3.5 h-3.5" />
                   <span>{language === 'hi' ? 'तस्वीरें' : 'Images'}</span>
                 </button>
                 <button
                   onClick={() => setFilterType('video')}
-                  className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
+                  className={`px-3.5 py-1.5 rounded-xl transition-all duration-200 font-semibold flex items-center gap-1.5 ${
                     filterType === 'video'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-102'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-850'
                   }`}
                 >
-                  <VideoIcon className="w-3 h-3" />
+                  <VideoIcon className="w-3.5 h-3.5" />
                   <span>{language === 'hi' ? 'वीडियो' : 'Videos'}</span>
                 </button>
                 <button
                   onClick={() => setFilterType('audio')}
-                  className={`px-3 py-1.5 rounded-lg transition font-medium flex items-center gap-1 ${
+                  className={`px-3.5 py-1.5 rounded-xl transition-all duration-200 font-semibold flex items-center gap-1.5 ${
                     filterType === 'audio'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-102'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-850'
                   }`}
                 >
-                  <Music className="w-3 h-3" />
+                  <Music className="w-3.5 h-3.5" />
                   <span>{language === 'hi' ? 'ऑडियो' : 'Audio'}</span>
                 </button>
               </div>
@@ -417,8 +417,8 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
           </div>
 
           {/* Search Input Bar */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-3" />
+          <div className="relative group">
+            <Search className="w-4 h-4 text-gray-500 group-focus-within:text-blue-400 transition-colors absolute left-4 top-3.5" />
             <input
               type="text"
               value={searchQuery}
@@ -428,12 +428,12 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                   ? 'शीर्षक, विवरण या तकनीक द्वारा खोजें...'
                   : 'Search projects by keyword, technology, or description...'
               }
-              className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-gray-200 outline-none focus:border-blue-500 transition"
+              className="w-full bg-gray-950/70 border border-gray-800 rounded-2xl pl-11 pr-10 py-3 text-xs sm:text-sm text-gray-200 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
+                className="absolute right-3.5 top-3 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -478,25 +478,28 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
               <div
                 key={post.id}
                 id={`post-${post.id}`}
-                className="bg-gray-900/95 border border-gray-800 hover:border-gray-700/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between shadow-xl transition-all hover:shadow-blue-500/5 group"
+                className="bg-gray-900/90 hover:bg-gray-900 border border-gray-800/90 hover:border-blue-500/40 rounded-3xl p-6 flex flex-col justify-between shadow-2xl transition-all duration-300 hover:shadow-blue-500/10 hover:-translate-y-1 group relative overflow-hidden backdrop-blur-md"
               >
+                {/* Subtle gradient backdrop accent */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-blue-500/10 transition-all duration-500" />
+
                 <div>
                   {/* Top Metadata: Tag & Date */}
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-800 border border-gray-700 text-gray-300">
-                      {post.media_type === 'image' && <ImageIcon className="w-3 h-3 text-blue-400" />}
-                      {post.media_type === 'video' && <VideoIcon className="w-3 h-3 text-emerald-400" />}
-                      {post.media_type === 'audio' && <Music className="w-3 h-3 text-purple-400" />}
+                  <div className="flex items-center justify-between gap-2 mb-3.5">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-gray-950/80 border border-gray-800 text-gray-300 shadow-sm">
+                      {post.media_type === 'image' && <ImageIcon className="w-3.5 h-3.5 text-blue-400" />}
+                      {post.media_type === 'video' && <VideoIcon className="w-3.5 h-3.5 text-emerald-400" />}
+                      {post.media_type === 'audio' && <Music className="w-3.5 h-3.5 text-purple-400" />}
                       <span className="capitalize">{post.media_type}</span>
                     </span>
 
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       {post.created_at && (
-                        <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                        <span className="font-mono text-[11px]">{new Date(post.created_at).toLocaleDateString()}</span>
                       )}
                       <button
                         onClick={() => handleShare(post)}
-                        className="p-1 hover:text-gray-300 transition"
+                        className="p-1.5 rounded-lg hover:bg-gray-800 hover:text-gray-200 transition"
                         title="Copy project link"
                       >
                         {copiedId === post.id ? (
@@ -509,23 +512,23 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                   </div>
 
                   {/* Title & Description */}
-                  <h3 className="text-xl font-bold text-blue-300 group-hover:text-blue-200 transition-colors font-heading leading-snug">
+                  <h3 className="text-xl font-extrabold text-white group-hover:text-blue-300 transition-colors font-heading leading-snug tracking-tight">
                     {post.title}
                   </h3>
                   {post.description && (
-                    <p className="text-gray-300/90 text-sm mt-2 line-clamp-3 leading-relaxed">
+                    <p className="text-gray-300/80 text-xs sm:text-sm mt-2.5 line-clamp-3 leading-relaxed">
                       {post.description}
                     </p>
                   )}
 
                   {/* Media Content Box */}
-                  <div className="mt-4 overflow-hidden rounded-xl bg-gray-950 border border-gray-800/80">
+                  <div className="mt-4 overflow-hidden rounded-2xl bg-gray-950 border border-gray-800/80 shadow-inner">
                     {post.media_type === 'image' && (
                       <div className="relative group/media overflow-hidden">
                         <img
                           src={post.media_url}
                           alt={post.title}
-                          className="rounded-xl w-full h-52 object-cover transition-transform duration-500 group-hover/media:scale-105"
+                          className="rounded-2xl w-full h-52 sm:h-56 object-cover transition-transform duration-500 group-hover/media:scale-105"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -541,27 +544,27 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                         src={post.media_url}
                         controls
                         preload="metadata"
-                        className="rounded-xl w-full h-52 object-cover bg-black"
+                        className="rounded-2xl w-full h-52 sm:h-56 object-cover bg-black"
                       >
                         {language === 'hi' ? 'आपका ब्राउज़र वीडियो टैग का समर्थन नहीं करता।' : 'Your browser does not support the video tag.'}
                       </video>
                     )}
 
                     {post.media_type === 'audio' && (
-                      <div className="p-4 bg-gradient-to-br from-gray-900 to-gray-950 rounded-xl space-y-3">
+                      <div className="p-5 bg-gradient-to-br from-gray-900 to-gray-950 rounded-2xl space-y-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300">
+                          <div className="w-11 h-11 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shadow-md">
                             <Music className="w-5 h-5 animate-pulse" />
                           </div>
                           <div>
-                            <p className="text-xs font-medium text-purple-300">Audio Track / Tech Podcast</p>
+                            <p className="text-xs font-semibold text-purple-300">Audio Track / Tech Podcast</p>
                             <p className="text-[11px] text-gray-400">Preview & listen below</p>
                           </div>
                         </div>
                         <audio
                           src={post.media_url}
                           controls
-                          className="w-full h-10 accent-blue-500 rounded-lg"
+                          className="w-full h-10 accent-blue-500 rounded-xl"
                         />
                       </div>
                     )}
@@ -569,17 +572,17 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                 </div>
 
                 {/* Footer Interaction: Likes & Feedback */}
-                <div className="mt-6 pt-4 border-t border-gray-800/90 space-y-3">
+                <div className="mt-6 pt-4 border-t border-gray-800/80 space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       {/* Primary Like Button */}
                       <button
                         id={`like-button-${post.id}`}
                         onClick={() => handleOpenLikeModal(post)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 border shadow-sm active:scale-95 ${
+                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 border shadow-sm active:scale-95 ${
                           justLiked[String(post.id)]
-                            ? 'bg-rose-500/20 border-rose-500 text-rose-300'
-                            : 'bg-gray-800 hover:bg-gray-750 hover:border-rose-500/40 text-gray-200 border-gray-700'
+                            ? 'bg-rose-500/20 border-rose-500 text-rose-300 shadow-rose-500/10'
+                            : 'bg-gray-800/80 hover:bg-gray-800 hover:border-rose-500/40 text-gray-200 border-gray-700/80'
                         }`}
                       >
                         <Heart 
@@ -594,7 +597,7 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                             ? (language === 'hi' ? 'लाइक किया!' : 'Liked!')
                             : (language === 'hi' ? 'लाइक करें' : 'Like')}
                         </span>
-                        <span className="px-1.5 py-0.5 rounded-full bg-gray-900/80 text-white font-mono text-[11px]">
+                        <span className="px-2 py-0.5 rounded-full bg-gray-950/80 text-white font-mono text-[11px] border border-gray-800">
                           {likesCount}
                         </span>
                       </button>
@@ -603,12 +606,12 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                       <button
                         id={`comment-button-${post.id}`}
                         onClick={() => handleOpenCommentModal(post)}
-                        className="px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 bg-gray-800 hover:bg-gray-750 hover:border-blue-500/40 text-gray-200 border border-gray-700 shadow-sm active:scale-95"
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 bg-gray-800/80 hover:bg-gray-800 hover:border-blue-500/40 text-gray-200 border border-gray-700/80 shadow-sm active:scale-95"
                         title="Leave private feedback / comment"
                       >
                         <MessageSquare className="w-4 h-4 text-blue-400" />
                         <span>{language === 'hi' ? 'टिप्पणी' : 'Comment'}</span>
-                        <span className="px-1.5 py-0.5 rounded-full bg-gray-900/80 text-white font-mono text-[11px]">
+                        <span className="px-2 py-0.5 rounded-full bg-gray-950/80 text-white font-mono text-[11px] border border-gray-800">
                           {commentsCount}
                         </span>
                       </button>
@@ -620,7 +623,7 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
                       className={`px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border shadow-sm active:scale-95 cursor-pointer ${
                         copiedId === post.id
                           ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 ring-1 ring-emerald-500/30'
-                          : 'bg-gray-800 hover:bg-gray-700 hover:border-blue-500/40 text-gray-300 hover:text-white border-gray-700'
+                          : 'bg-gray-800/80 hover:bg-gray-800 hover:border-blue-500/40 text-gray-300 hover:text-white border-gray-700/80'
                       }`}
                       title={language === 'hi' ? 'क्विक शेयर: डायरेक्ट लिंक कॉपी करें' : 'Quick Share: Copy direct link to clipboard'}
                     >

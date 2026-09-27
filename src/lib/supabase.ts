@@ -37,23 +37,7 @@ function getUrlParam(key: string): string {
   }
 }
 
-// Strictly read public Supabase environment variables from Vercel / Next.js environment OR direct One-Click URL Parameters
-export const SUPABASE_URL: string =
-  getUrlParam('supabase_url') ||
-  getUrlParam('url') ||
-  readEnvVar('NEXT_PUBLIC_SUPABASE_URL') ||
-  readEnvVar('VITE_SUPABASE_URL') ||
-  '';
-
-export const SUPABASE_ANON_KEY: string =
-  getUrlParam('supabase_anon_key') ||
-  getUrlParam('supabase_key') ||
-  getUrlParam('anon_key') ||
-  getUrlParam('key') ||
-  readEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY') ||
-  readEnvVar('VITE_SUPABASE_ANON_KEY') ||
-  '';
-
+const CONFIG_KEY = 'vrishketu_supabase_config';
 const PROFILE_KEY = 'vrishketu_local_profile';
 const POSTS_KEY = 'vrishketu_local_posts';
 const MESSAGES_KEY = 'vrishketu_local_messages';
@@ -64,7 +48,54 @@ export interface SupabaseConfigState {
   isConnected: boolean;
 }
 
-// Strictly initialize Supabase client instance using environment variables
+// Helper to safely read from localStorage
+function getLocalConfig(): { url: string; anonKey: string } {
+  if (typeof window === 'undefined') return { url: '', anonKey: '' };
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { url: parsed.url || '', anonKey: parsed.anonKey || '' };
+    }
+  } catch {
+    // ignore
+  }
+  return { url: '', anonKey: '' };
+}
+
+const localCfg = getLocalConfig();
+
+// Read public Supabase environment variables from URL -> Vercel/Next.js/Vite env -> localStorage fallback
+export const SUPABASE_URL: string =
+  getUrlParam('supabase_url') ||
+  getUrlParam('url') ||
+  readEnvVar('NEXT_PUBLIC_SUPABASE_URL') ||
+  readEnvVar('VITE_SUPABASE_URL') ||
+  localCfg.url ||
+  '';
+
+export const SUPABASE_ANON_KEY: string =
+  getUrlParam('supabase_anon_key') ||
+  getUrlParam('supabase_key') ||
+  getUrlParam('anon_key') ||
+  getUrlParam('key') ||
+  readEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY') ||
+  readEnvVar('VITE_SUPABASE_ANON_KEY') ||
+  localCfg.anonKey ||
+  '';
+
+// If credentials were provided in URL, auto-persist to localStorage for future visits
+if (typeof window !== 'undefined' && (getUrlParam('supabase_url') || getUrlParam('url'))) {
+  try {
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify({ url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY, isConnected: true }));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Strictly initialize Supabase client instance using environment variables or stored config
 export const supabase: SupabaseClient | null =
   (SUPABASE_URL && SUPABASE_ANON_KEY)
     ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -78,14 +109,14 @@ export const supabase: SupabaseClient | null =
 let supabaseInstance: SupabaseClient | null = supabase;
 
 /**
- * Returns the environment-driven Supabase configuration.
- * Strictly uses Vercel environment variables without requiring any manual localStorage configuration.
+ * Returns the active Supabase configuration status.
  */
 export function getStoredConfig(): SupabaseConfigState {
-  const isConnected = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+  const currentClient = getSupabaseClient();
+  const isConnected = Boolean(currentClient && (SUPABASE_URL || localCfg.url) && (SUPABASE_ANON_KEY || localCfg.anonKey));
   return {
-    url: SUPABASE_URL,
-    anonKey: SUPABASE_ANON_KEY,
+    url: SUPABASE_URL || localCfg.url,
+    anonKey: SUPABASE_ANON_KEY || localCfg.anonKey,
     isConnected
   };
 }
@@ -94,8 +125,8 @@ export function getStoredConfig(): SupabaseConfigState {
  * Helper to initialize or retrieve the Supabase client.
  */
 export function initSupabase(url?: string, anonKey?: string): SupabaseClient | null {
-  const finalUrl = url?.trim() || SUPABASE_URL;
-  const finalKey = anonKey?.trim() || SUPABASE_ANON_KEY;
+  const finalUrl = url?.trim() || SUPABASE_URL || localCfg.url;
+  const finalKey = anonKey?.trim() || SUPABASE_ANON_KEY || localCfg.anonKey;
 
   if (!finalUrl || !finalKey) {
     return null;
@@ -125,15 +156,30 @@ export function getSupabaseClient(): SupabaseClient | null {
   return initSupabase();
 }
 
-export function saveStoredConfig(_url: string, _anonKey: string, _isConnected = true) {
-  // Deprecated: Configuration is now managed strictly via environment variables (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  if (import.meta.env?.DEV) {
-    console.info('[Supabase] Stored config update ignored - using environment variables.');
+export function saveStoredConfig(url: string, anonKey: string, isConnected = true) {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify({ url: url.trim(), anonKey: anonKey.trim(), isConnected }));
+    }
+    if (url && anonKey) {
+      initSupabase(url, anonKey);
+    } else {
+      supabaseInstance = null;
+    }
+  } catch (e) {
+    console.error('Error saving Supabase config:', e);
   }
 }
 
 export function clearStoredConfig() {
-  // Deprecated: Configuration is managed via environment variables
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(CONFIG_KEY);
+    }
+    supabaseInstance = null;
+  } catch (e) {
+    console.error('Error clearing config:', e);
+  }
 }
 
 // Data normalization helpers to protect against corrupted localStorage or malformed API responses
