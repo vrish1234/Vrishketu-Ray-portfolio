@@ -2,7 +2,58 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ProfileInfo, MediaPost, PostLike, PostComment, ContactMessage, DetailedComment, MediaType, Story } from '../types';
 import { DEFAULT_PROFILE, DEFAULT_POSTS, DEFAULT_MESSAGES, DEFAULT_STORIES } from '../data/defaultData';
 
-const CONFIG_KEY = 'vrishketu_supabase_config';
+// ============================================================================
+// Supabase Client Initialization (Vercel & Next.js Production Config)
+// ============================================================================
+
+// Helper to safely read environment variables across Next.js (App Router / Pages), Vite, and Vercel environments
+function readEnvVar(key: string): string {
+  // 1. Check Node.js / Next.js / Server & Webpack process.env
+  if (typeof process !== 'undefined' && process?.env && typeof process.env[key] === 'string') {
+    const val = process.env[key]?.trim();
+    if (val) return val;
+  }
+  // 2. Check Vite / ESM import.meta.env
+  if (typeof import.meta !== 'undefined' && (import.meta as any)?.env && typeof (import.meta as any).env[key] === 'string') {
+    const val = (import.meta as any).env[key]?.trim();
+    if (val) return val;
+  }
+  // 3. Global fallback
+  if (typeof globalThis !== 'undefined' && (globalThis as any)?.__ENV?.[key]) {
+    return (globalThis as any).__ENV[key]?.trim() || '';
+  }
+  return '';
+}
+
+// Helper to safely extract Supabase credentials from browser URL query params (e.g. ?supabase_url=...&supabase_key=...)
+function getUrlParam(key: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.substring(window.location.hash.indexOf('?')) : '');
+    return params.get(key) || hashParams.get(key) || '';
+  } catch {
+    return '';
+  }
+}
+
+// Strictly read public Supabase environment variables from Vercel / Next.js environment OR direct One-Click URL Parameters
+export const SUPABASE_URL: string =
+  getUrlParam('supabase_url') ||
+  getUrlParam('url') ||
+  readEnvVar('NEXT_PUBLIC_SUPABASE_URL') ||
+  readEnvVar('VITE_SUPABASE_URL') ||
+  '';
+
+export const SUPABASE_ANON_KEY: string =
+  getUrlParam('supabase_anon_key') ||
+  getUrlParam('supabase_key') ||
+  getUrlParam('anon_key') ||
+  getUrlParam('key') ||
+  readEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY') ||
+  readEnvVar('VITE_SUPABASE_ANON_KEY') ||
+  '';
+
 const PROFILE_KEY = 'vrishketu_local_profile';
 const POSTS_KEY = 'vrishketu_local_posts';
 const MESSAGES_KEY = 'vrishketu_local_messages';
@@ -13,85 +64,76 @@ export interface SupabaseConfigState {
   isConnected: boolean;
 }
 
-let supabaseInstance: SupabaseClient | null = null;
+// Strictly initialize Supabase client instance using environment variables
+export const supabase: SupabaseClient | null =
+  (SUPABASE_URL && SUPABASE_ANON_KEY)
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true
+        }
+      })
+    : null;
 
+let supabaseInstance: SupabaseClient | null = supabase;
+
+/**
+ * Returns the environment-driven Supabase configuration.
+ * Strictly uses Vercel environment variables without requiring any manual localStorage configuration.
+ */
 export function getStoredConfig(): SupabaseConfigState {
-  // 1. Check environment variables (Vite / Next.js / Vercel conventions)
-  const envUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || (import.meta as any)?.env?.NEXT_PUBLIC_SUPABASE_URL || '';
-  const envKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || (import.meta as any)?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const isConnected = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+  return {
+    url: SUPABASE_URL,
+    anonKey: SUPABASE_ANON_KEY,
+    isConnected
+  };
+}
 
-  try {
-    const raw = localStorage.getItem(CONFIG_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed.url && parsed.anonKey) {
-        return {
-          url: parsed.url,
-          anonKey: parsed.anonKey,
-          isConnected: parsed.isConnected ?? true
-        };
-      }
+/**
+ * Helper to initialize or retrieve the Supabase client.
+ */
+export function initSupabase(url?: string, anonKey?: string): SupabaseClient | null {
+  const finalUrl = url?.trim() || SUPABASE_URL;
+  const finalKey = anonKey?.trim() || SUPABASE_ANON_KEY;
+
+  if (!finalUrl || !finalKey) {
+    return null;
+  }
+
+  if (!supabaseInstance || (url && anonKey)) {
+    try {
+      supabaseInstance = createClient(finalUrl, finalKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true
+        }
+      });
+    } catch (err) {
+      console.error('[Supabase] Client creation error:', err);
     }
-  } catch (e) {
-    console.error('Error reading stored Supabase config:', e);
   }
 
-  // Fallback to environment variables if present
-  if (envUrl && envKey) {
-    return {
-      url: envUrl,
-      anonKey: envKey,
-      isConnected: true
-    };
-  }
-
-  return { url: '', anonKey: '', isConnected: false };
+  return supabaseInstance;
 }
 
-export function initSupabase(url: string, anonKey: string): SupabaseClient | null {
-  if (!url || !anonKey || url.trim() === '' || anonKey.trim() === '') {
-    supabaseInstance = null;
-    return null;
-  }
-  try {
-    supabaseInstance = createClient(url.trim(), anonKey.trim());
-    return supabaseInstance;
-  } catch (err) {
-    console.error('Failed to initialize Supabase client:', err);
-    supabaseInstance = null;
-    return null;
-  }
-}
-
+/**
+ * Returns the single active Supabase client instance.
+ */
 export function getSupabaseClient(): SupabaseClient | null {
   if (supabaseInstance) return supabaseInstance;
-  const config = getStoredConfig();
-  if (config.url && config.anonKey) {
-    return initSupabase(config.url, config.anonKey);
-  }
-  return null;
+  return initSupabase();
 }
 
-export function saveStoredConfig(url: string, anonKey: string, isConnected = false) {
-  try {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({ url, anonKey, isConnected }));
-    if (url && anonKey) {
-      initSupabase(url, anonKey);
-    } else {
-      supabaseInstance = null;
-    }
-  } catch (e) {
-    console.error('Error saving Supabase config:', e);
+export function saveStoredConfig(_url: string, _anonKey: string, _isConnected = true) {
+  // Deprecated: Configuration is now managed strictly via environment variables (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  if (import.meta.env?.DEV) {
+    console.info('[Supabase] Stored config update ignored - using environment variables.');
   }
 }
 
 export function clearStoredConfig() {
-  try {
-    localStorage.removeItem(CONFIG_KEY);
-    supabaseInstance = null;
-  } catch (e) {
-    console.error('Error clearing config:', e);
-  }
+  // Deprecated: Configuration is managed via environment variables
 }
 
 // Data normalization helpers to protect against corrupted localStorage or malformed API responses

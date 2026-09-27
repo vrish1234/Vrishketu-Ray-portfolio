@@ -85,39 +85,95 @@ export const ProjectsFeed: React.FC<ProjectsFeedProps> = ({
     }
   }, [shareToast]);
 
-  // SKELETON SCREEN PLACEHOLDER WHILE DATA IS BEING FETCHED
+  // HIGH-FIDELITY SHIMMER SKELETON PLACEHOLDER WHILE DATA IS BEING FETCHED
   if (isLoading) {
+    const skeletonCount = isCompact ? 2 : 4;
+
     return (
-      <section className="space-y-6 animate-pulse">
-        {/* Header Skeleton */}
+      <section className="space-y-6 animate-fade-in">
+        {/* Header Skeleton with Shimmer */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
           <div className="space-y-2">
-            <div className="h-8 bg-gray-800 rounded-xl w-60" />
-            <div className="h-4 bg-gray-800/60 rounded w-80 max-w-full" />
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-blue-500/30 animate-shimmer" />
+              <div className="h-4 w-32 bg-gray-800 rounded-md animate-shimmer" />
+            </div>
+            <div className="h-8 bg-gray-800/90 rounded-xl w-64 max-w-full animate-shimmer" />
+            <div className="h-4 bg-gray-800/50 rounded-lg w-96 max-w-full animate-shimmer" />
           </div>
-          <div className="h-9 w-48 bg-gray-800/60 rounded-xl" />
+
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-36 bg-gray-800/70 rounded-xl animate-shimmer" />
+            <div className="h-9 w-24 bg-gray-800/70 rounded-xl animate-shimmer" />
+          </div>
         </div>
 
-        {/* Search bar skeleton */}
-        <div className="h-11 bg-gray-800/40 rounded-xl w-full" />
+        {/* Search & Filter bar skeleton (shown in full view) */}
+        {!isCompact && (
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="h-11 bg-gray-900 border border-gray-800 rounded-xl flex-1 animate-shimmer" />
+            <div className="h-11 w-44 bg-gray-900 border border-gray-800 rounded-xl animate-shimmer hidden sm:block" />
+          </div>
+        )}
 
-        {/* Project Card Skeletons */}
+        {/* Project Card Shimmer Skeletons matching exact grid layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[1, 2].map((idx) => (
-            <div key={idx} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="h-5 w-24 bg-gray-800 rounded-full" />
-                <div className="h-5 w-16 bg-gray-800 rounded" />
+          {Array.from({ length: skeletonCount }).map((_, idx) => (
+            <div 
+              key={`skeleton-card-${idx}`} 
+              className="bg-gray-900/95 border border-gray-800/90 rounded-2xl p-5 sm:p-6 flex flex-col justify-between shadow-xl space-y-4"
+            >
+              <div className="space-y-4">
+                {/* Top Tag & Timestamp Meta Row */}
+                <div className="flex justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-24 bg-gray-800 rounded-full animate-shimmer" />
+                    <div className="h-5 w-16 bg-gray-800/60 rounded-full animate-shimmer" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-20 bg-gray-800/50 rounded animate-shimmer" />
+                    <div className="w-6 h-6 rounded-lg bg-gray-800/60 animate-shimmer" />
+                  </div>
+                </div>
+
+                {/* Card Title Skeleton */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="h-6 w-4/5 bg-gray-800 rounded-lg animate-shimmer" />
+                </div>
+
+                {/* Card Description Lines */}
+                <div className="space-y-2">
+                  <div className="h-3.5 w-full bg-gray-800/60 rounded animate-shimmer" />
+                  <div className="h-3.5 w-[92%] bg-gray-800/50 rounded animate-shimmer" />
+                  <div className="h-3.5 w-[70%] bg-gray-800/40 rounded animate-shimmer" />
+                </div>
+
+                {/* Media Preview Box Skeleton with Centered Pulsing Frame */}
+                <div className="relative h-52 sm:h-56 bg-gray-950/80 border border-gray-800/80 rounded-xl overflow-hidden flex items-center justify-center animate-shimmer">
+                  <div className="w-12 h-12 rounded-2xl bg-gray-800/80 flex items-center justify-center text-gray-700">
+                    <div className="w-6 h-6 rounded-lg bg-gray-700/50" />
+                  </div>
+                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
+                    <div className="h-5 w-20 bg-gray-800/90 rounded-md" />
+                  </div>
+                </div>
               </div>
-              <div className="h-6 w-3/4 bg-gray-800 rounded-lg" />
-              <div className="space-y-2">
-                <div className="h-4 w-full bg-gray-800/60 rounded" />
-                <div className="h-4 w-4/5 bg-gray-800/50 rounded" />
-              </div>
-              <div className="h-52 bg-gray-800/80 rounded-xl w-full" />
-              <div className="flex justify-between items-center pt-2 border-t border-gray-800">
-                <div className="h-8 w-24 bg-gray-800 rounded-lg" />
-                <div className="h-8 w-24 bg-gray-800 rounded-lg" />
+
+              {/* Bottom Action Controls: Like, Comment, Quick Share, Live Demo */}
+              <div className="pt-3.5 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {/* Like Button Skeleton */}
+                  <div className="h-8 w-20 bg-gray-800/80 rounded-xl animate-shimmer" />
+                  {/* Comment Button Skeleton */}
+                  <div className="h-8 w-16 bg-gray-800/80 rounded-xl animate-shimmer" />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Quick Share Button Skeleton */}
+                  <div className="h-8 w-24 bg-gray-800/80 rounded-xl animate-shimmer" />
+                  {/* Live Link Button Skeleton */}
+                  <div className="h-8 w-20 bg-gray-800/80 rounded-xl animate-shimmer" />
+                </div>
               </div>
             </div>
           ))}

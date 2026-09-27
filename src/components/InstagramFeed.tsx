@@ -32,6 +32,7 @@ interface InstagramFeedProps {
   language: Language;
   lastSynced?: string;
   onOpenConnectModal?: () => void;
+  isLoading?: boolean;
 }
 
 export const InstagramFeed: React.FC<InstagramFeedProps> = ({
@@ -41,7 +42,8 @@ export const InstagramFeed: React.FC<InstagramFeedProps> = ({
   isSyncing,
   language,
   lastSynced,
-  onOpenConnectModal
+  onOpenConnectModal,
+  isLoading = false
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'reels' | 'images'>('all');
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
@@ -50,6 +52,80 @@ export const InstagramFeed: React.FC<InstagramFeedProps> = ({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const cleanUsername = username.replace(/^@/, '');
+
+  // High-fidelity shimmer skeleton loader while Instagram data is loading
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {/* Banner Skeleton */}
+        <div className="bg-gradient-to-r from-pink-950/20 via-purple-950/15 to-gray-900 border border-pink-500/20 rounded-3xl p-6 sm:p-7 shadow-xl space-y-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-pink-600/20 border border-pink-500/30 animate-shimmer shrink-0" />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-56 bg-gray-800 rounded-lg animate-shimmer" />
+                  <div className="h-5 w-24 bg-pink-500/20 rounded-full animate-shimmer" />
+                </div>
+                <div className="h-3.5 w-80 max-w-full bg-gray-800/60 rounded animate-shimmer" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-32 bg-gray-800/80 rounded-xl animate-shimmer" />
+              <div className="h-9 w-36 bg-pink-600/30 rounded-xl animate-shimmer" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-2 border-t border-gray-800/80">
+            <div className="h-7 w-28 bg-pink-600/30 rounded-xl animate-shimmer" />
+            <div className="h-7 w-24 bg-gray-800 rounded-xl animate-shimmer" />
+            <div className="h-7 w-24 bg-gray-800 rounded-xl animate-shimmer" />
+          </div>
+        </div>
+
+        {/* Instagram Grid Skeletons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 items-start">
+          {[1, 2, 3, 4].map(idx => (
+            <div
+              key={`ig-skeleton-${idx}`}
+              className="bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between"
+            >
+              {/* Media Square Shimmer */}
+              <div className="relative aspect-[4/5] sm:aspect-square bg-gray-950 flex items-center justify-center animate-shimmer">
+                <div className="w-14 h-14 rounded-full bg-gray-800/80 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded bg-gray-700/50" />
+                </div>
+                <div className="absolute top-3 left-3">
+                  <div className="h-6 w-16 bg-gray-800/90 rounded-full" />
+                </div>
+              </div>
+
+              {/* Card Meta & Caption Skeleton */}
+              <div className="p-4 sm:p-5 space-y-3 bg-gray-900/90">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-4 w-12 bg-gray-800 rounded animate-shimmer" />
+                    <div className="h-4 w-12 bg-gray-800 rounded animate-shimmer" />
+                  </div>
+                  <div className="h-3.5 w-16 bg-gray-800/60 rounded animate-shimmer" />
+                </div>
+                <div className="space-y-1.5 pt-1">
+                  <div className="h-3.5 w-full bg-gray-800/70 rounded animate-shimmer" />
+                  <div className="h-3.5 w-4/5 bg-gray-800/50 rounded animate-shimmer" />
+                </div>
+                <div className="pt-2 border-t border-gray-800/80 flex items-center justify-between">
+                  <div className="h-4 w-16 bg-gray-800/60 rounded animate-shimmer" />
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-16 bg-gray-800 rounded-xl animate-shimmer" />
+                    <div className="h-7 w-24 bg-pink-500/20 rounded-xl animate-shimmer" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const toggleExpand = (id: string) => {
     setExpandedIds(prev => {

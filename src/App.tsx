@@ -664,6 +664,7 @@ export default function App() {
                     username={socialConfig.instagram_username}
                     onSync={handleSyncAllSocial}
                     isSyncing={isSyncingSocial}
+                    isLoading={isLoading || isSyncingSocial}
                     language={language}
                     lastSynced={socialConfig.instagram_last_synced}
                     onOpenConnectModal={() => setIsConnectModalOpen(true)}
@@ -676,6 +677,7 @@ export default function App() {
                     profileUrl={socialConfig.linkedin_profile_url}
                     onSync={handleSyncAllSocial}
                     isSyncing={isSyncingSocial}
+                    isLoading={isLoading || isSyncingSocial}
                     language={language}
                     lastSynced={socialConfig.linkedin_last_synced}
                     onOpenConnectModal={() => setIsConnectModalOpen(true)}

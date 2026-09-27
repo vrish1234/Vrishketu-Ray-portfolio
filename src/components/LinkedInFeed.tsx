@@ -40,6 +40,7 @@ interface LinkedInFeedProps {
   language: Language;
   lastSynced?: string;
   onOpenConnectModal?: () => void;
+  isLoading?: boolean;
 }
 
 export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
@@ -49,12 +50,112 @@ export const LinkedInFeed: React.FC<LinkedInFeedProps> = ({
   isSyncing,
   language,
   lastSynced,
-  onOpenConnectModal
+  onOpenConnectModal,
+  isLoading = false
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'links' | 'media'>('all');
   const [expandedPostIds, setExpandedPostIds] = useState<Set<string>>(new Set());
+
+  // High-fidelity shimmer skeleton loader while LinkedIn data is loading
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {/* LinkedIn Header Banner Skeleton */}
+        <div className="bg-gradient-to-r from-blue-950/20 via-gray-900 to-indigo-950/15 border border-blue-500/20 rounded-3xl p-6 sm:p-7 shadow-xl space-y-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-[#0A66C2]/30 border border-blue-500/30 animate-shimmer shrink-0" />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-60 bg-gray-800 rounded-lg animate-shimmer" />
+                  <div className="h-5 w-24 bg-blue-500/20 rounded-full animate-shimmer" />
+                </div>
+                <div className="h-3.5 w-80 max-w-full bg-gray-800/60 rounded animate-shimmer" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-32 bg-gray-800/80 rounded-xl animate-shimmer" />
+              <div className="h-9 w-36 bg-[#0A66C2]/30 rounded-xl animate-shimmer" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-gray-800/80">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-gray-950/60 rounded-xl p-3 border border-gray-800/60 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-gray-800 animate-shimmer shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3 w-16 bg-gray-800 rounded animate-shimmer" />
+                  <div className="h-4 w-28 bg-gray-800/80 rounded animate-shimmer" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Filter and Search Skeleton */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="h-10 bg-gray-900 border border-gray-800 rounded-xl flex-1 animate-shimmer" />
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-24 bg-gray-900 border border-gray-800 rounded-lg animate-shimmer" />
+            <div className="h-8 w-28 bg-gray-900 border border-gray-800 rounded-lg animate-shimmer" />
+            <div className="h-8 w-20 bg-gray-900 border border-gray-800 rounded-lg animate-shimmer" />
+          </div>
+        </div>
+
+        {/* Timeline Posts Skeleton */}
+        <div className="space-y-6">
+          {[1, 2, 3].map(idx => (
+            <div
+              key={`linkedin-skeleton-${idx}`}
+              className="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-7 shadow-xl space-y-4"
+            >
+              {/* Author Header Skeleton */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-full bg-gray-800 animate-shimmer shrink-0" />
+                  <div className="space-y-1.5">
+                    <div className="h-4 w-36 bg-gray-800 rounded animate-shimmer" />
+                    <div className="h-3 w-48 bg-gray-800/60 rounded animate-shimmer" />
+                    <div className="h-2.5 w-20 bg-gray-800/40 rounded animate-shimmer" />
+                  </div>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-gray-800 animate-shimmer" />
+              </div>
+
+              {/* Content Body Lines Skeleton */}
+              <div className="space-y-2 pt-1">
+                <div className="h-3.5 w-full bg-gray-800/80 rounded animate-shimmer" />
+                <div className="h-3.5 w-[94%] bg-gray-800/70 rounded animate-shimmer" />
+                <div className="h-3.5 w-[65%] bg-gray-800/50 rounded animate-shimmer" />
+              </div>
+
+              {/* Link Preview Card Skeleton */}
+              <div className="bg-gray-950/80 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-4">
+                <div className="w-full sm:w-36 h-28 bg-gray-800/70 rounded-xl animate-shimmer shrink-0" />
+                <div className="space-y-2 flex-1 pt-1">
+                  <div className="h-4 w-3/4 bg-gray-800 rounded animate-shimmer" />
+                  <div className="h-3 w-full bg-gray-800/60 rounded animate-shimmer" />
+                  <div className="h-3 w-28 bg-blue-500/20 rounded animate-shimmer" />
+                </div>
+              </div>
+
+              {/* Bottom Actions Skeleton */}
+              <div className="pt-3 border-t border-gray-800/80 flex items-center justify-between">
+                <div className="h-4 w-28 bg-gray-800/60 rounded animate-shimmer" />
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 bg-gray-800 rounded-xl animate-shimmer" />
+                  <div className="h-8 w-16 bg-gray-800 rounded-xl animate-shimmer" />
+                  <div className="h-8 w-24 bg-[#0A66C2]/20 rounded-xl animate-shimmer" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const toggleExpandPost = (id: string) => {
     setExpandedPostIds(prev => {
